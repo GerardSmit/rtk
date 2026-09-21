@@ -6,6 +6,17 @@ static SPINNERS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[⠋⠙⠹⠸�
 static FUNDING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^[ \t]*(?:\d+ packages? (?:are|is) looking for funding|run `npm fund` for details)[ \t]*\r?(?:\n|$)").unwrap()
 });
+static CARGO_PROGRESS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^[ \t]*(?:Compiling|Checking|Fresh) [\w-]+ v\d[^\r\n]*(?:\r?\n|$)").unwrap()
+});
+static CARGO_FINISHED: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?m)^[ \t]*Finished `([^`\r\n]+)` profile \[[^\]\r\n]+\] target\(s\) in ([^\r\n]+)",
+    )
+    .unwrap()
+});
+static WARNING_CODE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[ \t]*(?:\d+ \|.*|\|[ \t^~\-]*)$").unwrap());
 
 static PNPM_PROGRESS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^Progress: resolved \d+, reused \d+, downloaded \d+, added \d+(?:, done)?$")
@@ -47,7 +58,9 @@ fn progress_kind(line: &str) -> u8 {
 }
 
 pub fn recognizes(input: &str) -> bool {
-    SPINNERS.is_match(input)
+    CARGO_PROGRESS.is_match(input)
+        || CARGO_FINISHED.is_match(input)
+        || SPINNERS.is_match(input)
         || FUNDING.is_match(input)
         || crate::cmds::js::captured_output::recognizes(input)
         || input.lines().any(|line| {
@@ -61,7 +74,8 @@ pub fn filter(input: &str) -> String {
     // directly to real warnings, summaries and command banners.
     let clean = SPINNERS.replace_all(input, "");
     let clean = FUNDING.replace_all(&clean, "");
-    let javascript = crate::cmds::js::captured_output::filter(&clean);
+    let cargo = cargo_compilation(&clean);
+    let javascript = crate::cmds::js::captured_output::filter(&cargo);
     let mut lines = javascript.split_inclusive('\n').peekable();
     let mut output = String::with_capacity(javascript.len());
     let mut diagnostics = HashSet::new();
@@ -145,6 +159,42 @@ pub fn filter(input: &str) -> String {
         output.push_str(&format!(
             "\n[RTK: {duplicates} repeated build diagnostics omitted]\n"
         ));
+    }
+    output
+}
+
+fn cargo_compilation(input: &str) -> String {
+    if !CARGO_PROGRESS.is_match(input) && !CARGO_FINISHED.is_match(input) {
+        return input.to_string();
+    }
+    let clean = CARGO_PROGRESS.replace_all(input, "");
+    let clean = CARGO_FINISHED.replace_all(&clean, "Cargo finished ($1, $2)");
+    let mut output = String::with_capacity(clean.len());
+    let mut warning = false;
+    for line in clean.split_inclusive('\n') {
+        let text = line.trim();
+        if text.starts_with("warning:") {
+            warning = !text.contains(" generated ");
+        } else if text.is_empty()
+            || text.starts_with("error")
+            || text.starts_with("Cargo finished (")
+        {
+            warning = false;
+        }
+        if warning {
+            if WARNING_CODE.is_match(line.trim_end())
+                || text.starts_with("= note: `#[warn(") && text.ends_with("on by default")
+            {
+                continue;
+            }
+            if text.starts_with('|') {
+                if let Some((_, help)) = text.split_once("help: ") {
+                    output.push_str(&format!("help: {help}\n"));
+                    continue;
+                }
+            }
+        }
+        output.push_str(line);
     }
     output
 }
