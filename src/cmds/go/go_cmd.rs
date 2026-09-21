@@ -1,15 +1,25 @@
 //! Filters Go command output — test results, build errors, vet warnings.
 
+#[cfg(not(rtk_library))]
 use crate::core::guard::never_worse;
+#[cfg(not(rtk_library))]
 use crate::core::runner;
+#[cfg(not(rtk_library))]
 use crate::core::stream::{CaptureResult, exec_capture};
+#[cfg(not(rtk_library))]
 use crate::core::tracking;
 use crate::core::truncate::CAP_ERRORS;
+#[cfg(rtk_library)]
+use crate::core::utils::truncate;
+#[cfg(not(rtk_library))]
 use crate::core::utils::{resolved_command, truncate};
+#[cfg(not(rtk_library))]
 use crate::golangci_cmd;
+#[cfg(not(rtk_library))]
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
+#[cfg(not(rtk_library))]
 use std::ffi::OsString;
 
 #[derive(Debug, Deserialize)]
@@ -45,6 +55,7 @@ struct PackageResult {
     package_fail_output: Vec<String>,         // output lines collected before the package fail
 }
 
+#[cfg(not(rtk_library))]
 pub fn run_test(args: &[String], verbose: u8) -> Result<i32> {
     let mut cmd = resolved_command("go");
     cmd.arg("test");
@@ -82,6 +93,7 @@ pub fn run_test(args: &[String], verbose: u8) -> Result<i32> {
     )
 }
 
+#[cfg(not(rtk_library))]
 pub fn run_build(args: &[String], verbose: u8) -> Result<i32> {
     let mut cmd = resolved_command("go");
     cmd.arg("build");
@@ -103,6 +115,7 @@ pub fn run_build(args: &[String], verbose: u8) -> Result<i32> {
     )
 }
 
+#[cfg(not(rtk_library))]
 pub fn run_vet(args: &[String], verbose: u8) -> Result<i32> {
     let mut cmd = resolved_command("go");
     cmd.arg("vet");
@@ -124,6 +137,7 @@ pub fn run_vet(args: &[String], verbose: u8) -> Result<i32> {
     )
 }
 
+#[cfg(not(rtk_library))]
 pub fn run_other(args: &[OsString], verbose: u8) -> Result<i32> {
     if args.is_empty() {
         anyhow::bail!("go: no subcommand specified");
@@ -169,6 +183,7 @@ pub fn run_other(args: &[OsString], verbose: u8) -> Result<i32> {
 
 /// Detect golangci-lint major version when invoked via `go tool`.
 /// Returns 1 on any failure (safe fallback — v1 behaviour).
+#[cfg(not(rtk_library))]
 fn detect_go_tool_golangci_version() -> u32 {
     let mut cmd = resolved_command("go");
     cmd.arg("tool").arg("golangci-lint").arg("--version");
@@ -186,6 +201,7 @@ fn detect_go_tool_golangci_version() -> u32 {
     }
 }
 
+#[cfg(not(rtk_library))]
 fn has_golangci_format_flag(args: &[OsString]) -> bool {
     args.iter().any(|a| {
         let s = a.to_string_lossy();
@@ -198,10 +214,12 @@ fn has_golangci_format_flag(args: &[OsString]) -> bool {
 
 /// Known `go tool` subcommands that RTK provides filtered output for.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg(not(rtk_library))]
 enum GoTool {
     GolangciLint,
 }
 
+#[cfg(not(rtk_library))]
 impl GoTool {
     fn from_name(name: &str) -> Option<Self> {
         match name {
@@ -212,6 +230,7 @@ impl GoTool {
 }
 
 /// If the first arg is `tool` identify if it is a tool we already handle.
+#[cfg(not(rtk_library))]
 fn match_go_tool(args: &[OsString]) -> Option<(GoTool, &[OsString])> {
     if args.first().map(|a| a == "tool").unwrap_or(false)
         && let Some(tool_arg) = args.get(1)
@@ -224,6 +243,7 @@ fn match_go_tool(args: &[OsString]) -> Option<(GoTool, &[OsString])> {
 
 /// Run `go tool golangci-lint` and filter its output via the golangci JSON filter.
 /// Reusing parts of golangci_cmd.
+#[cfg(not(rtk_library))]
 fn run_go_tool_golangci_lint(args: &[OsString], verbose: u8) -> Result<i32> {
     let timer = tracking::TimedExecution::start();
 
@@ -694,6 +714,7 @@ fn is_go_build_error_line(line: &str) -> bool {
 }
 
 /// Filter go vet output - show issues
+#[cfg(not(rtk_library))]
 fn filter_go_vet(output: &str) -> String {
     let mut issues: Vec<String> = Vec::new();
 
@@ -745,6 +766,7 @@ fn compact_package_name(package: &str) -> String {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

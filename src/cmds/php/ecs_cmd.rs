@@ -1,9 +1,15 @@
 //! EasyCodingStandard output filter.
 
+#[cfg(rtk_library)]
+use super::utils::strip_ansi_and_controls;
+#[cfg(not(rtk_library))]
 use super::utils::{php_tool_command, strip_ansi_and_controls};
+#[cfg(not(rtk_library))]
 use crate::core::runner;
+#[cfg(not(rtk_library))]
 use anyhow::Result;
 
+#[cfg(not(rtk_library))]
 pub fn run(args: &[String], verbose: u8) -> Result<i32> {
     let mut cmd = php_tool_command("ecs");
     for arg in args {
@@ -60,6 +66,7 @@ pub(crate) fn filter_ecs_output(output: &str) -> String {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

@@ -1,7 +1,11 @@
+#[cfg(not(rtk_library))]
 use anyhow::Result;
+#[cfg(not(rtk_library))]
 use std::io::Read;
 
+#[cfg(not(rtk_library))]
 use crate::core::guard::never_worse;
+#[cfg(not(rtk_library))]
 use crate::core::stream::RAW_CAP;
 use crate::core::truncate::{CAP_LIST, CAP_WARNINGS};
 
@@ -244,15 +248,17 @@ fn identity_filter(input: &str) -> String {
     input.to_string()
 }
 
-fn apply_filter(filter_fn: fn(&str) -> String, input: &str) -> String {
+pub(crate) fn apply_filter(filter_fn: fn(&str) -> String, input: &str) -> String {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| filter_fn(input))).unwrap_or_else(
         |_| {
+            #[cfg(not(rtk_library))]
             eprintln!("[rtk] warning: filter panicked — passing through raw output");
             input.to_string()
         },
     )
 }
 
+#[cfg(not(rtk_library))]
 pub fn run(filter_name: Option<&str>, passthrough: bool) -> Result<()> {
     if passthrough {
         std::io::copy(&mut std::io::stdin(), &mut std::io::stdout())

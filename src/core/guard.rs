@@ -11,7 +11,9 @@
 //! the ceiling sat under the message's own floor and dropped it on 90% of
 //! one-line pairs.
 
-use crate::core::tracking::estimate_tokens;
+fn estimate_tokens(text: &str) -> usize {
+    text.len().div_ceil(4)
+}
 
 /// Returns `filtered`, or `raw` when `filtered` would emit more tokens.
 pub fn never_worse<'a>(raw: &'a str, filtered: &'a str) -> &'a str {

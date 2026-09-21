@@ -6,9 +6,12 @@
 //! the user hasn't picked a format, parse it, and emit a compact summary
 //! grouped by file and sorted by rule count.
 
+#[cfg(not(rtk_library))]
 use super::utils::php_tool_command;
+#[cfg(not(rtk_library))]
 use crate::core::runner;
 use crate::core::utils::fallback_tail;
+#[cfg(not(rtk_library))]
 use anyhow::Result;
 use serde::Deserialize;
 
@@ -33,6 +36,7 @@ struct PintFile {
     applied_fixers: Vec<String>,
 }
 
+#[cfg(not(rtk_library))]
 pub fn run(args: &[String], verbose: u8) -> Result<i32> {
     let mut cmd = php_tool_command("pint");
 
@@ -136,6 +140,7 @@ pub(crate) fn filter_pint_json(output: &str) -> String {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

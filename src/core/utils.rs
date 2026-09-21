@@ -5,15 +5,23 @@
 //! - Text truncation
 //! - Command execution with error context
 
+#[cfg(not(rtk_library))]
 use anyhow::{Context, Result};
+#[cfg(not(rtk_library))]
 use chrono::{DateTime, Utc};
 use regex::Regex;
+#[cfg(not(rtk_library))]
 use serde_json::Value;
+#[cfg(not(rtk_library))]
 use std::ffi::OsStr;
+#[cfg(not(rtk_library))]
 use std::fs;
+#[cfg(not(rtk_library))]
 use std::path::PathBuf;
+#[cfg(not(rtk_library))]
 use std::process::Command;
 use std::sync::LazyLock;
+#[cfg(not(rtk_library))]
 use std::sync::OnceLock;
 
 /// Compute `days` ago from now, clamped instead of panicking on overflow.
@@ -28,6 +36,7 @@ use std::sync::OnceLock;
 /// and any remaining overflow building or applying the `Duration` falls back to
 /// `DateTime::<Utc>::MIN_UTC` — an arbitrarily distant cutoff means "no lower
 /// bound", which is exactly what an absurdly large `--since` should behave like.
+#[cfg(not(rtk_library))]
 pub fn days_ago_cutoff(days: u64) -> DateTime<Utc> {
     let days = days.min(i64::MAX as u64) as i64;
     chrono::Duration::try_days(days)
@@ -43,7 +52,7 @@ pub fn days_ago_cutoff(days: u64) -> DateTime<Utc> {
 ///
 /// # Examples
 /// ```
-/// use rtk::utils::truncate;
+/// use rtk_filter::truncate;
 /// assert_eq!(truncate("hello world", 8), "hello...");
 /// assert_eq!(truncate("hi", 10), "hi");
 /// ```
@@ -66,7 +75,7 @@ pub fn truncate(s: &str, max_len: usize) -> String {
 ///
 /// # Examples
 /// ```
-/// use rtk::utils::strip_ansi;
+/// use rtk_filter::strip_ansi;
 /// let colored = "\x1b[31mError\x1b[0m";
 /// assert_eq!(strip_ansi(colored), "Error");
 /// ```
@@ -82,6 +91,7 @@ pub fn strip_ansi(text: &str) -> String {
 /// 5.1 `Out-File -Encoding utf8`) prepend one to hand-edited config files,
 /// and Cursor on Windows ships hook payloads with them. Strip defensively
 /// wherever RTK parses JSON a human or another tool may have written.
+#[cfg(not(rtk_library))]
 pub fn strip_leading_bom(input: &str) -> &str {
     let mut s = input;
     while let Some(rest) = s.strip_prefix('\u{feff}') {
@@ -92,6 +102,7 @@ pub fn strip_leading_bom(input: &str) -> &str {
 
 /// BOM-tolerant `serde_json::from_str`. Prefer this over `serde_json::from_str`
 /// anywhere the JSON may have been written by a human, an editor, or another tool.
+#[cfg(not(rtk_library))]
 pub fn from_json_str<'a, T: serde::Deserialize<'a>>(s: &'a str) -> serde_json::Result<T> {
     serde_json::from_str(strip_leading_bom(s))
 }
@@ -119,6 +130,7 @@ pub fn from_json_str<'a, T: serde::Deserialize<'a>>(s: &'a str) -> serde_json::R
 /// assert_eq!(format_tokens(59_234), "59.2K");
 /// assert_eq!(format_tokens(694), "694");
 /// ```
+#[cfg(not(rtk_library))]
 pub fn format_tokens(n: usize) -> String {
     if n >= 1_000_000 {
         format!("{:.1}M", n as f64 / 1_000_000.0)
@@ -145,6 +157,7 @@ pub fn format_tokens(n: usize) -> String {
 /// assert_eq!(format_usd(0.123), "$0.12");
 /// assert_eq!(format_usd(0.0096), "$0.0096");
 /// ```
+#[cfg(not(rtk_library))]
 pub fn format_usd(amount: f64) -> String {
     if !amount.is_finite() {
         return "$0.00".to_string();
@@ -171,6 +184,7 @@ pub fn format_usd(amount: f64) -> String {
 /// assert_eq!(format_cpt(0.0000038), "$3.80/MTok");
 /// assert_eq!(format_cpt(0.00000386), "$3.86/MTok");
 /// ```
+#[cfg(not(rtk_library))]
 pub fn format_cpt(cpt: f64) -> String {
     if !cpt.is_finite() || cpt <= 0.0 {
         return "$0.00/MTok".to_string();
@@ -183,9 +197,9 @@ pub fn format_cpt(cpt: f64) -> String {
 ///
 /// # Examples
 /// ```
-/// use rtk::utils::join_with_overflow;
+/// use rtk_filter::join_with_overflow;
 /// let items = vec!["a".to_string(), "b".to_string()];
-/// assert_eq!(join_with_overflow(&items, 5, 3, "items"), "a\nb\n... +2 more items");
+/// assert_eq!(join_with_overflow(&items, 5, 3, "items"), "a\nb\n… +2 more items");
 /// assert_eq!(join_with_overflow(&items, 2, 3, "items"), "a\nb");
 /// ```
 pub fn join_with_overflow(items: &[String], total: usize, max: usize, label: &str) -> String {
@@ -205,6 +219,7 @@ pub fn join_with_overflow(items: &[String], total: usize, max: usize, label: &st
 /// assert_eq!(truncate_iso_date("2024-01-15"), "2024-01-15");
 /// assert_eq!(truncate_iso_date("short"), "short");
 /// ```
+#[cfg(not(rtk_library))]
 pub fn truncate_iso_date(date: &str) -> &str {
     if date.len() >= 10 { &date[..10] } else { date }
 }
@@ -218,6 +233,7 @@ pub fn truncate_iso_date(date: &str) -> &str {
 /// assert_eq!(ok_confirmation("merged", "#42"), "ok merged #42");
 /// assert_eq!(ok_confirmation("created", "PR #5 https://..."), "ok created PR #5 https://...");
 /// ```
+#[cfg(not(rtk_library))]
 pub fn ok_confirmation(action: &str, detail: &str) -> String {
     if detail.is_empty() {
         format!("ok {}", action)
@@ -229,6 +245,7 @@ pub fn ok_confirmation(action: &str, detail: &str) -> String {
 /// Extract exit code from a process output. Returns the actual exit code, or
 /// `128 + signal` per Unix convention when terminated by a signal (no exit code
 /// available). Falls back to 1 on non-Unix platforms.
+#[cfg(not(rtk_library))]
 pub fn exit_code_from_output(output: &std::process::Output, label: &str) -> i32 {
     match output.status.code() {
         Some(code) => code,
@@ -250,6 +267,7 @@ pub fn exit_code_from_output(output: &std::process::Output, label: &str) -> i32 
 /// Extract exit code from an ExitStatus (for `.status()` calls, not `.output()`).
 /// Returns the actual exit code, or `128 + signal` per Unix convention when
 /// terminated by a signal. Falls back to 1 on non-Unix platforms.
+#[cfg(not(rtk_library))]
 pub fn exit_code_from_status(status: &std::process::ExitStatus, label: &str) -> i32 {
     match status.code() {
         Some(code) => code,
@@ -271,6 +289,9 @@ pub fn exit_code_from_status(status: &std::process::ExitStatus, label: &str) -> 
 /// Return the last `n` lines of output with a label, for use as a fallback
 /// when filter parsing fails. Logs a diagnostic to stderr.
 pub fn fallback_tail(output: &str, label: &str, n: usize) -> String {
+    #[cfg(rtk_library)]
+    let _ = label;
+    #[cfg(not(rtk_library))]
     eprintln!(
         "[rtk] {}: output format not recognized, showing last {} lines",
         label, n
@@ -285,8 +306,10 @@ pub fn fallback_tail(output: &str, label: &str, n: usize) -> String {
 /// (`RTK_RECALL`, `RTK_TEE`): a static declared inside one test module is not
 /// shared with other modules, so those tests would not actually serialize.
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 pub(crate) static TEST_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+#[cfg(not(rtk_library))]
 pub fn create_private_dir(path: &std::path::Path) -> std::io::Result<()> {
     fs::create_dir_all(path)?;
     set_owner_only(path, 0o700);
@@ -294,6 +317,7 @@ pub fn create_private_dir(path: &std::path::Path) -> std::io::Result<()> {
 }
 
 /// Restrict an existing file to owner-only access (0600 on Unix).
+#[cfg(not(rtk_library))]
 pub fn restrict_file(path: &std::path::Path) {
     set_owner_only(path, 0o600);
 }
@@ -301,6 +325,7 @@ pub fn restrict_file(path: &std::path::Path) {
 /// Open a file owner-only (0600 on Unix), applied at creation so content is
 /// never briefly readable under a permissive umask. `mode` is ignored for a
 /// file that already exists, so an older one is still tightened afterwards.
+#[cfg(not(rtk_library))]
 pub fn open_private(
     opts: &mut fs::OpenOptions,
     path: &std::path::Path,
@@ -330,11 +355,13 @@ pub fn open_private(
 /// defeating the self-heal `set_owner_only` exists to provide, for exactly the
 /// files (external tampering, restored backups) it's meant to catch.
 #[cfg(unix)]
+#[cfg(not(rtk_library))]
 fn mode_already_correct(actual: u32, target: u32) -> bool {
     actual & 0o7777 == target
 }
 
 #[cfg(unix)]
+#[cfg(not(rtk_library))]
 fn set_owner_only(path: &std::path::Path, mode: u32) {
     use std::os::unix::fs::PermissionsExt;
     // Skip the chmod syscall once permissions already match. This runs on every
@@ -354,11 +381,13 @@ fn set_owner_only(path: &std::path::Path, mode: u32) {
 }
 
 #[cfg(not(unix))]
+#[cfg(not(rtk_library))]
 fn set_owner_only(_path: &std::path::Path, _mode: u32) {}
 
 /// Build a Command for Ruby tools, auto-detecting bundle exec.
 /// Uses `bundle exec <tool>` when a Gemfile exists (transitive deps like rake
 /// won't appear in the Gemfile but still need bundler for version isolation).
+#[cfg(not(rtk_library))]
 pub fn ruby_exec(tool: &str) -> Command {
     if std::path::Path::new("Gemfile").exists() {
         let mut c = Command::new("bundle");
@@ -371,6 +400,7 @@ pub fn ruby_exec(tool: &str) -> Command {
 /// Count whitespace-delimited tokens in text. Used by filter tests to verify
 /// token savings claims.
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 pub fn count_tokens(text: &str) -> usize {
     text.split_whitespace().count()
 }
@@ -385,12 +415,14 @@ pub fn count_tokens(text: &str) -> usize {
 /// // "pnpm" for pnpm-lock.yaml, "yarn" for yarn.lock, "bun" for bun.lock(b), else "npm"
 /// ```
 #[allow(dead_code)]
+#[cfg(not(rtk_library))]
 pub fn detect_package_manager() -> &'static str {
     detect_package_manager_in(std::path::Path::new("."))
 }
 
 /// Lockfile detection against an explicit directory, so callers (and tests) do
 /// not have to move the process's current directory to ask the question.
+#[cfg(not(rtk_library))]
 pub fn detect_package_manager_in(dir: &std::path::Path) -> &'static str {
     if dir.join("pnpm-lock.yaml").exists() {
         "pnpm"
@@ -405,6 +437,7 @@ pub fn detect_package_manager_in(dir: &std::path::Path) -> &'static str {
 
 /// Build a Command using the detected package manager's exec mechanism.
 /// Returns a Command ready to have tool-specific args appended.
+#[cfg(not(rtk_library))]
 pub fn package_manager_exec(tool: &str) -> Command {
     tool_exec(None, tool, MissingTool::Fail)
 }
@@ -413,6 +446,7 @@ pub fn package_manager_exec(tool: &str) -> Command {
 /// by default, which is right for a tool the user named themselves and
 /// surprising for one rtk picked on their behalf.
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[cfg(not(rtk_library))]
 pub enum MissingTool {
     Fetch,
     Fail,
@@ -423,6 +457,7 @@ pub enum MissingTool {
 /// detected bun resolves through npx: bunx always fetches a missing tool into
 /// its cache and cannot be told not to, so `MissingTool` could not be honoured
 /// and the presence of a lockfile alone would decide what gets downloaded.
+#[cfg(not(rtk_library))]
 pub fn exec_runner(runner: Option<&str>, missing: MissingTool) -> &str {
     match runner {
         Some(named) => named,
@@ -446,6 +481,7 @@ pub fn exec_runner(runner: Option<&str>, missing: MissingTool) -> &str {
 /// Detection applies only when nothing was named, as with a bare `rtk tsc`.
 ///
 /// A tool already on PATH is run directly only when no runner was named.
+#[cfg(not(rtk_library))]
 pub fn tool_exec(runner: Option<&str>, tool: &str, missing: MissingTool) -> Command {
     // Only when nothing was named: `bunx tsc` must resolve the project's tsc,
     // not a global one that happens to be on PATH. Both bunx and npx prefer
@@ -489,6 +525,7 @@ pub fn tool_exec(runner: Option<&str>, tool: &str, missing: MissingTool) -> Comm
 /// is what leaves MSYS children with a mangled command line (#3727).
 // Windows-only in production; the rules stay unit-tested on every platform.
 #[cfg_attr(not(windows), allow(dead_code))]
+#[cfg(not(rtk_library))]
 pub fn quote_arg_for_child(arg: &str) -> String {
     let mut out = String::with_capacity(arg.len() + 2);
     out.push('"');
@@ -525,6 +562,7 @@ pub fn quote_arg_for_child(arg: &str) -> String {
 ///
 /// Use instead of `Command::arg`/`args` for anything that arrived on rtk's own
 /// command line — a pattern, a path, a flag value.
+#[cfg(not(rtk_library))]
 pub trait ChildArgExt {
     fn child_arg<S: AsRef<OsStr>>(&mut self, arg: S) -> &mut Command;
 
@@ -534,6 +572,7 @@ pub trait ChildArgExt {
         S: AsRef<OsStr>;
 }
 
+#[cfg(not(rtk_library))]
 impl ChildArgExt for Command {
     fn child_arg<S: AsRef<OsStr>>(&mut self, arg: S) -> &mut Command {
         push_child_arg(self, arg.as_ref());
@@ -557,6 +596,7 @@ impl ChildArgExt for Command {
 /// shims stay on it too — cmd.exe parses by its own rules and `raw_arg` would
 /// bypass the escaping std applies for them.
 #[cfg(windows)]
+#[cfg(not(rtk_library))]
 fn push_child_arg(cmd: &mut Command, arg: &OsStr) {
     match arg.to_str() {
         Some(s) if s.contains('"') && !is_batch_program(cmd) => {
@@ -569,6 +609,7 @@ fn push_child_arg(cmd: &mut Command, arg: &OsStr) {
 }
 
 #[cfg(windows)]
+#[cfg(not(rtk_library))]
 fn is_batch_program(cmd: &Command) -> bool {
     std::path::Path::new(cmd.get_program())
         .extension()
@@ -578,6 +619,7 @@ fn is_batch_program(cmd: &Command) -> bool {
 /// Unix: the argument vector reaches `execvp` verbatim, so there is nothing to
 /// encode.
 #[cfg(not(windows))]
+#[cfg(not(rtk_library))]
 fn push_child_arg(cmd: &mut Command, arg: &OsStr) {
     cmd.arg(arg);
 }
@@ -595,6 +637,7 @@ fn push_child_arg(cmd: &mut Command, arg: &OsStr) {
 ///
 /// # Returns
 /// Full path to the resolved binary, or error if not found.
+#[cfg(not(rtk_library))]
 pub fn resolve_binary(name: &str) -> Result<PathBuf> {
     which::which(name).context(format!("Binary '{}' not found on PATH", name))
 }
@@ -612,6 +655,7 @@ pub fn resolve_binary(name: &str) -> Result<PathBuf> {
 ///
 /// # Returns
 /// A `Command` configured with the resolved binary path.
+#[cfg(not(rtk_library))]
 pub fn resolved_command(name: &str) -> Command {
     match resolve_binary(name) {
         Ok(path) => Command::new(path),
@@ -636,6 +680,7 @@ pub fn resolved_command(name: &str) -> Command {
 /// Composer allows overriding the default `vendor/bin` via `COMPOSER_BIN_DIR`
 /// or `composer.json` `config.bin-dir`. Keep the default as a fallback so we
 /// continue recognizing the common layout even when the repo is not configured.
+#[cfg(not(rtk_library))]
 pub fn composer_bin_dirs() -> Vec<PathBuf> {
     // Resolution depends only on the process's env + cwd composer.json, both
     // constant for a single rtk invocation. The rewrite hot path queries this
@@ -650,6 +695,7 @@ pub fn composer_bin_dirs() -> Vec<PathBuf> {
         .clone()
 }
 
+#[cfg(not(rtk_library))]
 pub fn composer_tool_paths(tool: &str) -> Vec<PathBuf> {
     composer_bin_dirs()
         .into_iter()
@@ -657,6 +703,7 @@ pub fn composer_tool_paths(tool: &str) -> Vec<PathBuf> {
         .collect()
 }
 
+#[cfg(not(rtk_library))]
 fn composer_bin_dirs_from(env_bin_dir: Option<&str>, composer_json: Option<&str>) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
 
@@ -677,6 +724,7 @@ fn composer_bin_dirs_from(env_bin_dir: Option<&str>, composer_json: Option<&str>
     dirs
 }
 
+#[cfg(not(rtk_library))]
 fn read_composer_bin_dir(composer_json: &str) -> Option<PathBuf> {
     let parsed: Value = from_json_str(composer_json).ok()?;
     let bin_dir = parsed.get("config")?.get("bin-dir")?.as_str()?.trim();
@@ -690,6 +738,7 @@ fn read_composer_bin_dir(composer_json: &str) -> Option<PathBuf> {
 /// Join lines with newlines, or return "ok" when there is nothing left to show.
 ///
 /// Shared by output filters that collapse fully to a success marker.
+#[cfg(not(rtk_library))]
 pub fn join_or_ok(lines: &[&str]) -> String {
     if lines.is_empty() {
         "ok".to_string()
@@ -701,6 +750,7 @@ pub fn join_or_ok(lines: &[&str]) -> String {
 /// Check if a tool exists on PATH (PATHEXT-aware on Windows).
 ///
 /// Replaces manual `Command::new("which").arg(tool)` checks that fail on Windows.
+#[cfg(not(rtk_library))]
 pub fn tool_exists(name: &str) -> bool {
     which::which(name).is_ok()
 }
@@ -719,6 +769,7 @@ pub fn tool_exists(name: &str) -> bool {
 /// assert!(!env_is_some(Some("")));
 /// assert!(!env_is_some(None));
 /// ```
+#[cfg(not(rtk_library))]
 pub fn env_is_some(value: Option<&str>) -> bool {
     value.is_some_and(|v| !v.is_empty())
 }
@@ -726,6 +777,7 @@ pub fn env_is_some(value: Option<&str>) -> bool {
 /// Extract short name from AWS ARN.
 /// Example: `arn:aws:ecs:region:acct:service/cluster/name` -> `name`
 /// For simple ARNs like `arn:aws:iam::123:user/alice`, returns `alice`.
+#[cfg(not(rtk_library))]
 pub fn shorten_arn(arn: &str) -> &str {
     // ARNs use "/" or ":" as separators. Try "/" first (service/cluster/name pattern),
     // then fall back to ":" for Lambda/IAM ARNs.
@@ -740,6 +792,7 @@ pub fn shorten_arn(arn: &str) -> &str {
 
 /// Convert bytes to human-readable format (KB, MB, GB, TB).
 /// Used for S3 object sizes.
+#[cfg(not(rtk_library))]
 pub fn human_bytes(bytes: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = KB * 1024;
@@ -770,6 +823,7 @@ pub fn human_bytes(bytes: u64) -> String {
 ///
 /// Falls back to lossy UTF-8 (`U+FFFD`) when no code page applies, matching the
 /// previous behavior.
+#[cfg(not(rtk_library))]
 pub fn decode_process_output(bytes: &[u8]) -> String {
     // Fast path: fully valid UTF-8 needs no scanning and no allocation beyond
     // the copy. This is every Unix run and every UTF-8 console on Windows.
@@ -792,6 +846,7 @@ pub fn decode_process_output(bytes: &[u8]) -> String {
 ///
 /// Takes the code page as a parameter so the walk and the mapping are
 /// unit-testable on every platform, not only Windows.
+#[cfg(not(rtk_library))]
 fn decode_mixed(bytes: &[u8], cp: Option<u16>) -> String {
     let mut out = String::with_capacity(bytes.len());
     // `split_inclusive` keeps the terminator, so line endings survive intact
@@ -811,6 +866,7 @@ fn decode_mixed(bytes: &[u8], cp: Option<u16>) -> String {
 /// really UTF-8 with a corrupt byte usually fails the code page decoder too,
 /// and lossy UTF-8 preserves its valid characters where the code page would
 /// turn all of them into mojibake.
+#[cfg(not(rtk_library))]
 fn decode_line(line: &[u8], cp: Option<u16>) -> String {
     if let Some(cp) = cp {
         // encoding_rs covers the ANSI and DBCS pages (1252, GBK, gb18030,
@@ -836,6 +892,7 @@ fn decode_line(line: &[u8], cp: Option<u16>) -> String {
 
 /// Warn once that output is being decoded lossily because the console code
 /// page has no known table — previously this fell back silently.
+#[cfg(not(rtk_library))]
 fn warn_unmapped_codepage(cp: u16) {
     static WARNED: std::sync::Once = std::sync::Once::new();
     WARNED.call_once(|| {
@@ -850,6 +907,7 @@ fn warn_unmapped_codepage(cp: u16) {
 /// The code page child output should be decoded with, or `None` when the
 /// platform has no such concept (every Unix) and lossy UTF-8 should be used.
 #[cfg(not(windows))]
+#[cfg(not(rtk_library))]
 fn output_codepage() -> Option<u16> {
     None
 }
@@ -867,6 +925,7 @@ fn output_codepage() -> Option<u16> {
 /// failed UTF-8 validation, so a wrong guess degrades to the same replacement
 /// characters that the previous lossy conversion produced.
 #[cfg(windows)]
+#[cfg(not(rtk_library))]
 fn output_codepage() -> Option<u16> {
     static CODEPAGE: OnceLock<Option<u16>> = OnceLock::new();
     *CODEPAGE.get_or_init(|| {
@@ -885,6 +944,7 @@ fn output_codepage() -> Option<u16> {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

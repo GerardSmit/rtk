@@ -5,8 +5,13 @@
 //! plus a bounded list of failures with their first two detail lines.
 //! Dot-progress lines and headers are stripped entirely.
 
+#[cfg(rtk_library)]
+use super::utils::strip_ansi_and_controls;
+#[cfg(not(rtk_library))]
 use super::utils::{php_tool_command, strip_ansi_and_controls};
+#[cfg(not(rtk_library))]
 use crate::core::runner;
+#[cfg(not(rtk_library))]
 use anyhow::Result;
 use regex::Regex;
 use std::sync::LazyLock;
@@ -19,6 +24,7 @@ const MAX_DETAIL_LINES_PER_FAILURE: usize = 2;
 // (e.g. "5 of 10 assertions passed in Foo::bar()") don't split a block.
 static FAILURE_HEADING_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\d+\) \S").unwrap());
 
+#[cfg(not(rtk_library))]
 pub fn run(args: &[String], verbose: u8) -> Result<i32> {
     let mut cmd = php_tool_command("phpunit");
     for arg in args {
@@ -204,6 +210,7 @@ struct Counts {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

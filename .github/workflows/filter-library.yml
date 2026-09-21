@@ -1,0 +1,31 @@
+name: Filter library
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  library:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo test --locked --manifest-path crates/rtk-filter/Cargo.toml
+      - run: cargo clippy --locked --manifest-path crates/rtk-filter/Cargo.toml --all-targets -- -D warnings
+      - name: Ensure CLI dependencies stay out
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, subprocess
+          graph = json.loads(subprocess.check_output([
+              "cargo", "metadata", "--locked", "--format-version", "1",
+              "--manifest-path", "crates/rtk-filter/Cargo.toml",
+          ]))
+          forbidden = {"rusqlite", "libsqlite3-sys", "ureq", "clap"}
+          assert not forbidden.intersection(p["name"] for p in graph["packages"])
+          PY

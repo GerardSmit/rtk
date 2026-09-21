@@ -123,11 +123,13 @@ pub fn truncate_output(output: &str, max_chars: usize) -> String {
 }
 
 /// Helper to emit degradation warning
+#[cfg(not(rtk_library))]
 pub fn emit_degradation_warning(tool: &str, reason: &str) {
     eprintln!("[RTK:DEGRADED] {} parser: {}", tool, reason);
 }
 
 /// Helper to emit passthrough warning
+#[cfg(not(rtk_library))]
 pub fn emit_passthrough_warning(tool: &str, reason: &str) {
     eprintln!("[RTK:PASSTHROUGH] {} parser: {}", tool, reason);
 }
@@ -197,6 +199,7 @@ pub fn extract_json_object(input: &str) -> Option<&str> {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 
