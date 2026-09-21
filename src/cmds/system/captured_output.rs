@@ -56,7 +56,6 @@ pub fn filter(input: &str) -> String {
     let mut diagnostics = HashSet::new();
     let mut build_summary = false;
     let mut duplicates = 0;
-    let mut preview_notice = false;
     while let Some(line) = lines.next() {
         let text = line.trim();
         let kind = progress_kind(text);
@@ -107,7 +106,6 @@ pub fn filter(input: &str) -> String {
             }
             diagnostics.clear();
             build_summary = false;
-            preview_notice = false;
         }
         if text == "Determining projects to restore..."
             && lines
@@ -116,13 +114,8 @@ pub fn filter(input: &str) -> String {
         {
             continue;
         }
-        // NETSDK1057 is one SDK-wide informational notice, not a project error.
-        // Keep its exact message once per build, without repeated source paths.
-        if let Some(notice) = PREVIEW_NOTICE.captures(text) {
-            if !preview_notice {
-                output.push_str(&format!("message NETSDK1057: {}\n", &notice[1]));
-                preview_notice = true;
-            }
+        // Suppress the known preview-SDK informational notice, including on failure.
+        if PREVIEW_NOTICE.is_match(text) {
             continue;
         }
         if matches!(text, "Build succeeded." | "Build FAILED.") {
