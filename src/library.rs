@@ -83,6 +83,7 @@ mod cmds {
         pub mod go_cmd;
     }
     pub mod js {
+        pub mod captured_output;
         pub mod prettier_cmd;
         pub mod tsc_cmd;
         pub mod vitest_cmd;

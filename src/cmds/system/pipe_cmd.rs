@@ -15,6 +15,7 @@ const MAX_PIPE_DIRS: usize = CAP_LIST;
 
 pub fn resolve_filter(name: &str) -> Option<fn(&str) -> String> {
     match name {
+        "javascript" | "node-test" | "next-build" => Some(crate::cmds::js::captured_output::filter),
         "cargo-test" | "cargo" => Some(crate::cmds::rust::cargo_cmd::filter_cargo_test),
         "pytest" => Some(crate::cmds::python::pytest_cmd::filter_pytest_output),
         "go-test" => Some(go_test_wrapper),
@@ -175,6 +176,9 @@ fn find_wrapper(input: &str) -> String {
 }
 
 pub fn auto_detect_filter(input: &str) -> fn(&str) -> String {
+    if crate::cmds::js::captured_output::recognizes(input) {
+        return crate::cmds::js::captured_output::filter;
+    }
     let end = input.len().min(1024);
     // Avoid panic: byte 1024 may fall inside a multi-byte UTF-8 char
     let end = input.floor_char_boundary(end);
