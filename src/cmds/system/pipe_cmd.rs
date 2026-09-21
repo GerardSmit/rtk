@@ -15,6 +15,7 @@ const MAX_PIPE_DIRS: usize = CAP_LIST;
 
 pub fn resolve_filter(name: &str) -> Option<fn(&str) -> String> {
     match name {
+        "captured" => Some(crate::cmds::system::captured_output::filter),
         "javascript" | "node-test" | "next-build" => Some(crate::cmds::js::captured_output::filter),
         "cargo-test" | "cargo" => Some(crate::cmds::rust::cargo_cmd::filter_cargo_test),
         "pytest" => Some(crate::cmds::python::pytest_cmd::filter_pytest_output),
@@ -176,8 +177,8 @@ fn find_wrapper(input: &str) -> String {
 }
 
 pub fn auto_detect_filter(input: &str) -> fn(&str) -> String {
-    if crate::cmds::js::captured_output::recognizes(input) {
-        return crate::cmds::js::captured_output::filter;
+    if crate::cmds::system::captured_output::recognizes(input) {
+        return crate::cmds::system::captured_output::filter;
     }
     let end = input.len().min(1024);
     // Avoid panic: byte 1024 may fall inside a multi-byte UTF-8 char
@@ -282,7 +283,7 @@ pub fn run(filter_name: Option<&str>, passthrough: bool) -> Result<()> {
     let filter_fn = match filter_name {
         Some(name) => resolve_filter(name).ok_or_else(|| {
             anyhow::anyhow!(
-                "Unknown filter '{}'. Available: cargo-test, pytest, go-test, go-build, \
+                "Unknown filter '{}'. Available: captured, javascript, node-test, next-build, cargo-test, pytest, go-test, go-build, \
                  ctest, tsc, vitest, grep, rg, find, fd, git-log, git-diff, git-status, \
                  log, mypy, ruff-check, ruff-format, sqlfluff-lint, prettier, phpunit, pest, \
                  paratest, php-test, ecs, phpstan, pint",

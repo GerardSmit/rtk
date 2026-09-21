@@ -106,6 +106,7 @@ mod cmds {
         pub mod cargo_cmd;
     }
     pub mod system {
+        pub mod captured_output;
         pub mod ctest_cmd;
         pub mod log_cmd;
         pub mod pipe_cmd;

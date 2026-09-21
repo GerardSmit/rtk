@@ -1,4 +1,5 @@
 pub mod ast_grep_cmd;
+pub mod captured_output;
 pub mod constants;
 pub mod ctest_cmd;
 pub mod deps;
