@@ -23,6 +23,9 @@ static RESTORED: LazyLock<Regex> = LazyLock::new(|| {
 });
 static DIAGNOSTIC: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r": (?:warning|error) [A-Z]+\d+: ").unwrap());
+static PREVIEW_NOTICE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^.+: message NETSDK1057: (You are using a preview version of \.NET\. See: https://aka\.ms/dotnet-support-policy)(?: \[[^\r\n]+\])?$").unwrap()
+});
 
 fn progress_kind(line: &str) -> u8 {
     if PNPM_PROGRESS.is_match(line) {
@@ -53,6 +56,7 @@ pub fn filter(input: &str) -> String {
     let mut diagnostics = HashSet::new();
     let mut build_summary = false;
     let mut duplicates = 0;
+    let mut preview_notice = false;
     while let Some(line) = lines.next() {
         let text = line.trim();
         let kind = progress_kind(text);
@@ -103,6 +107,23 @@ pub fn filter(input: &str) -> String {
             }
             diagnostics.clear();
             build_summary = false;
+            preview_notice = false;
+        }
+        if text == "Determining projects to restore..."
+            && lines
+                .peek()
+                .is_some_and(|next| next.trim() == "All projects are up-to-date for restore.")
+        {
+            continue;
+        }
+        // NETSDK1057 is one SDK-wide informational notice, not a project error.
+        // Keep its exact message once per build, without repeated source paths.
+        if let Some(notice) = PREVIEW_NOTICE.captures(text) {
+            if !preview_notice {
+                output.push_str(&format!("message NETSDK1057: {}\n", &notice[1]));
+                preview_notice = true;
+            }
+            continue;
         }
         if matches!(text, "Build succeeded." | "Build FAILED.") {
             build_summary = true;
