@@ -15,8 +15,14 @@ static CARGO_FINISHED: LazyLock<Regex> = LazyLock::new(|| {
     )
     .unwrap()
 });
-static WARNING_CODE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[ \t]*(?:\d+ \|.*|\|[ \t^~\-]*)$").unwrap());
+static CARGO_WARNING: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^warning(?:\[[^\]\r\n]+\])?:[^\r\n]*\r?\n[ \t]+-->").unwrap()
+});
+static WARNING_BODY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[ \t]*(?:-->|:::|\d+[ \t]*\||\||= (?:note|help):|help:|note:|\.\.\.$)").unwrap()
+});
+static WARNING_TOTAL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^warning: `[^`]+`.* generated \d+ warnings?\b").unwrap());
 
 static PNPM_PROGRESS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^Progress: resolved \d+, reused \d+, downloaded \d+, added \d+(?:, done)?$")
@@ -60,6 +66,7 @@ fn progress_kind(line: &str) -> u8 {
 pub fn recognizes(input: &str) -> bool {
     CARGO_PROGRESS.is_match(input)
         || CARGO_FINISHED.is_match(input)
+        || CARGO_WARNING.is_match(input)
         || SPINNERS.is_match(input)
         || FUNDING.is_match(input)
         || crate::cmds::js::captured_output::recognizes(input)
@@ -164,37 +171,50 @@ pub fn filter(input: &str) -> String {
 }
 
 fn cargo_compilation(input: &str) -> String {
-    if !CARGO_PROGRESS.is_match(input) && !CARGO_FINISHED.is_match(input) {
+    if !CARGO_PROGRESS.is_match(input)
+        && !CARGO_FINISHED.is_match(input)
+        && !CARGO_WARNING.is_match(input)
+    {
         return input.to_string();
     }
     let clean = CARGO_PROGRESS.replace_all(input, "");
     let clean = CARGO_FINISHED.replace_all(&clean, "Cargo finished ($1, $2)");
     let mut output = String::with_capacity(clean.len());
     let mut warning = false;
-    for line in clean.split_inclusive('\n') {
+    let mut warnings = 0usize;
+    let mut lines = clean.split_inclusive('\n').peekable();
+    while let Some(line) = lines.next() {
         let text = line.trim();
-        if text.starts_with("warning:") {
-            warning = !text.contains(" generated ");
-        } else if text.is_empty()
-            || text.starts_with("error")
-            || text.starts_with("Cargo finished (")
-        {
-            warning = false;
+        if warning && (text.is_empty() || WARNING_BODY.is_match(text)) {
+            continue;
         }
-        if warning {
-            if WARNING_CODE.is_match(line.trim_end())
-                || text.starts_with("= note: `#[warn(") && text.ends_with("on by default")
-            {
-                continue;
-            }
-            if text.starts_with('|') {
-                if let Some((_, help)) = text.split_once("help: ") {
-                    output.push_str(&format!("help: {help}\n"));
-                    continue;
-                }
-            }
+        warning = false;
+        // Only hide rendered rustc diagnostics with a source-location line.
+        // Cargo/build-script warnings without that structure remain visible.
+        if (text.starts_with("warning:") || text.starts_with("warning["))
+            && lines
+                .peek()
+                .is_some_and(|next| next.trim_start().starts_with("-->"))
+        {
+            warning = true;
+            warnings += 1;
+            continue;
+        }
+        if warnings > 0 && (text.is_empty() || WARNING_TOTAL.is_match(text)) {
+            continue;
+        }
+        if warnings > 0 {
+            output.push_str(&format!(
+                "Cargo: {warnings} warnings (details in full output).\n"
+            ));
+            warnings = 0;
         }
         output.push_str(line);
+    }
+    if warnings > 0 {
+        output.push_str(&format!(
+            "Cargo: {warnings} warnings (details in full output).\n"
+        ));
     }
     output
 }
