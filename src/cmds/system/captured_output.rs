@@ -2,6 +2,11 @@
 use regex::Regex;
 use std::{collections::HashSet, sync::LazyLock};
 
+static SPINNERS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]+").unwrap());
+static FUNDING: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^[ \t]*(?:\d+ packages? (?:are|is) looking for funding|run `npm fund` for details)[ \t]*\r?(?:\n|$)").unwrap()
+});
+
 static PNPM_PROGRESS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^Progress: resolved \d+, reused \d+, downloaded \d+, added \d+(?:, done)?$")
         .unwrap()
@@ -42,7 +47,9 @@ fn progress_kind(line: &str) -> u8 {
 }
 
 pub fn recognizes(input: &str) -> bool {
-    crate::cmds::js::captured_output::recognizes(input)
+    SPINNERS.is_match(input)
+        || FUNDING.is_match(input)
+        || crate::cmds::js::captured_output::recognizes(input)
         || input.lines().any(|line| {
             progress_kind(line.trim()) != 0
                 || matches!(line.trim(), "Build succeeded." | "Build FAILED.")
@@ -50,7 +57,11 @@ pub fn recognizes(input: &str) -> bool {
 }
 
 pub fn filter(input: &str) -> String {
-    let javascript = crate::cmds::js::captured_output::filter(input);
+    // Clean progress noise before format detection: spinner frames can be joined
+    // directly to real warnings, summaries and command banners.
+    let clean = SPINNERS.replace_all(input, "");
+    let clean = FUNDING.replace_all(&clean, "");
+    let javascript = crate::cmds::js::captured_output::filter(&clean);
     let mut lines = javascript.split_inclusive('\n').peekable();
     let mut output = String::with_capacity(javascript.len());
     let mut diagnostics = HashSet::new();
