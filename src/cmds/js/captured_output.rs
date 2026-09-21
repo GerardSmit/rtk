@@ -33,9 +33,13 @@ static VITE_BANNER: LazyLock<Regex> = LazyLock::new(|| {
 static NUXT_BANNER: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^[● ]*Nuxt \d+\.").unwrap());
 static NUXT_ASSET: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(?:\[info\] )?(?:[├└]─ )?(\.nuxt/dist/client/|\.output/server/)([^\r\n]+)$")
+    Regex::new(r"^(?:\[info\] )?(?:[├└]─ )?(?:(?:node_modules/\.cache/nuxt/)?\.nuxt/dist/client/|\.output/server/)[^\r\n]+(?:kB| B)(?:[^\r\n]*)$")
         .unwrap()
 });
+static DEPRECATION: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\(node:\d+\) \[DEP\d+\] DeprecationWarning: ").unwrap());
+static VITE_ASSET: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(\S+/)\S+\s+\d+(?:\.\d+)? kB(?:\s+│ gzip:.*)?$").unwrap());
 
 pub fn recognizes(input: &str) -> bool {
     NODE_TOTALS.is_match(input)
@@ -110,40 +114,138 @@ pub fn filter(input: &str) -> String {
             vite = false;
         }
     }
-    if !NUXT_BANNER.is_match(input) {
-        return filtered;
-    }
-    // Preserve every artifact and size; factor repeated directory prefixes out
-    // of contiguous Nuxt tables. Never truncate the list or merge build tables.
-    let mut compact = String::with_capacity(filtered.len());
-    let mut lines = filtered.split_inclusive('\n').peekable();
-    while let Some(line) = lines.next() {
-        let Some(asset) = NUXT_ASSET.captures(line.trim()) else {
-            compact.push_str(line);
+    minimal_build_output(&filtered)
+}
+
+fn minimal_build_output(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    let mut framework = "";
+    let mut deprecation = false;
+    let mut vite_directory = String::new();
+    let mut routes = false;
+    let mut nuxt_server_output = false;
+    for line in input.split_inclusive('\n') {
+        let text = line.trim();
+        if DEPRECATION.is_match(text) {
+            deprecation = true;
             continue;
-        };
-        let root = asset.get(1).unwrap().as_str();
-        let mut entries = vec![asset.get(2).unwrap().as_str()];
-        while let Some(next) = lines.peek() {
-            let Some(asset) = NUXT_ASSET.captures(next.trim()) else {
-                break;
-            };
-            if &asset[1] != root {
-                break;
-            }
-            entries.push(asset.get(2).unwrap().as_str());
-            lines.next();
         }
-        if entries.len() == 1 {
-            compact.push_str(line);
-        } else {
-            compact.push_str(&format!("{root}:\n"));
-            for entry in entries {
-                compact.push_str("  ");
-                compact.push_str(entry);
-                compact.push('\n');
-            }
+        if deprecation && text.starts_with("(Use `node --trace-deprecation") {
+            deprecation = false;
+            continue;
         }
+        deprecation = false;
+        if text.starts_with("> ") || text.starts_with("$ ") {
+            framework = "";
+            vite_directory.clear();
+            routes = false;
+        }
+        if text == "┌  Building Nuxt for production..." || NUXT_BANNER.is_match(text) {
+            framework = "nuxt";
+            nuxt_server_output = false;
+            continue;
+        }
+        if NEXT_BANNER.is_match(text) {
+            framework = "next";
+            continue;
+        }
+        if VITE_BANNER.is_match(text) {
+            if framework != "nuxt" {
+                framework = "vite";
+            }
+            continue;
+        }
+        if !framework.is_empty() && text.is_empty() {
+            continue;
+        }
+        match framework {
+            "nuxt" => {
+                if NUXT_ASSET.is_match(text) && text.contains(".output/server/") {
+                    nuxt_server_output = true;
+                }
+                if NUXT_ASSET.is_match(text)
+                    || matches!(
+                        text,
+                        "│" | "[log] │" | "[info] Building client..." | "[info] Building server..."
+                    )
+                    || text.starts_with("●  Nitro preset:")
+                    || text.starts_with("✓ ") && text.ends_with(" modules transformed.")
+                    || text.starts_with("[info] ✓ built in ")
+                    || text.starts_with("[success] Client built in ")
+                    || text.starts_with("[success] Server built in ")
+                    || text.starts_with("[info] [nitro] Building Nuxt Nitro server (")
+                    || text.starts_with("[success] [nitro] Generated public ")
+                {
+                    continue;
+                }
+                if text == "[success] [nitro] Nuxt Nitro server built" {
+                    continue;
+                }
+                if let Some(total) = text.strip_prefix("Σ Total size: ") {
+                    if nuxt_server_output {
+                        output.push_str(".output/server generated. ");
+                    }
+                    output.push_str(&format!("Total size: {total}\n"));
+                    continue;
+                }
+                if let Some(preview) =
+                    text.strip_prefix("[success] [nitro] You can preview this build using ")
+                {
+                    output.push_str(&format!("Preview: {preview}\n"));
+                    continue;
+                }
+                if text == "└  ✨ Build complete!" {
+                    output.push_str("Nuxt build succeeded.\n");
+                    framework = "";
+                    continue;
+                }
+            }
+            "vite" => {
+                if let Some(asset) = VITE_ASSET.captures(text) {
+                    // Default Vite asset tables use dist/ and dist/assets/. Keep
+                    // custom directories verbatim rather than guessing their root.
+                    let directory = asset[1].strip_suffix("assets/").unwrap_or(&asset[1]);
+                    if directory != vite_directory {
+                        output.push_str(&format!("{directory} generated.\n"));
+                        vite_directory = directory.to_string();
+                    }
+                    continue;
+                }
+                if text.starts_with("✓ ") && text.ends_with(" modules transformed.") {
+                    continue;
+                }
+                if let Some(time) = text.strip_prefix("✓ built in ") {
+                    output.push_str(&format!("Vite build succeeded ({time}).\n"));
+                    framework = "";
+                    continue;
+                }
+            }
+            "next" => {
+                if text.starts_with("Route (") {
+                    routes = true;
+                    output.push_str("Next.js build succeeded; routes generated.\n");
+                    continue;
+                }
+                if text.starts_with("✓ Running next.config")
+                    || text.starts_with("✓ Compiled successfully in ")
+                    || text.starts_with("Finished TypeScript in ")
+                    || text.starts_with("✓ Finished TypeScript in ")
+                    || text.starts_with("✓ Generating static pages using ")
+                    || text.starts_with("✓ Collecting page data using ")
+                    || text.starts_with("✓ Finalizing page optimization in ")
+                    || routes
+                        && (text.starts_with("┌ ")
+                            || text.starts_with("├ ")
+                            || text.starts_with("└ ")
+                            || text.starts_with("○  (Static)")
+                            || text.starts_with("ƒ  (Dynamic)"))
+                {
+                    continue;
+                }
+            }
+            _ => {}
+        }
+        output.push_str(line);
     }
-    compact
+    output
 }
