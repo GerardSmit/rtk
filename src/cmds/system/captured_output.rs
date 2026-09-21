@@ -6,6 +6,8 @@ static PNPM_PROGRESS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^Progress: resolved \d+, reused \d+, downloaded \d+, added \d+(?:, done)?$")
         .unwrap()
 });
+static PNPM_PACKAGES: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?:Packages: [+-]\d+(?: [+-]\d+)?|[+-]+)$").unwrap());
 static YARN_STAGE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^\[\d+/\d+\] (?:Resolving packages|Fetching packages|Linking dependencies|Building fresh packages|Rebuilding all packages)\.\.\.$").unwrap()
 });
@@ -57,20 +59,31 @@ pub fn filter(input: &str) -> String {
         if kind != 0 {
             let mut count = 1;
             let mut last = line;
-            // Never cross warnings, lifecycle script output, or a pnpm completion
-            // boundary. Separate commands retain separate final progress counts.
-            while !(kind == 1 && last.trim().ends_with(", done"))
-                && lines
+            // Only pnpm's package counts/bar may separate progress rows. Keep
+            // that text, and never cross diagnostics or a completion boundary.
+            while !(kind == 1 && last.trim().ends_with(", done")) {
+                let mut candidate = lines.clone();
+                let mut package_rows = String::new();
+                if kind == 1 {
+                    while candidate
+                        .peek()
+                        .is_some_and(|next| PNPM_PACKAGES.is_match(next.trim()))
+                    {
+                        package_rows.push_str(candidate.next().unwrap());
+                    }
+                }
+                if !candidate
                     .peek()
                     .is_some_and(|next| progress_kind(next.trim()) == kind)
-            {
-                last = lines.next().unwrap();
+                {
+                    break;
+                }
+                last = candidate.next().unwrap();
+                lines = candidate;
+                output.push_str(&package_rows);
                 count += 1;
             }
-            if count == 1 || kind == 1 {
-                output.push_str(last);
-            } else if kind == 2 {
-                output.push_str(&format!("[RTK: {count} Yarn progress lines]\n"));
+            if count == 1 || kind == 1 || kind == 2 {
                 output.push_str(last);
             } else if kind == 3 {
                 output.push_str(&format!("[RTK: {count} Yarn cache-miss notices omitted]\n"));
