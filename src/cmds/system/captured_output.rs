@@ -6,6 +6,24 @@ static SPINNERS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[⠋⠙⠹⠸�
 static FUNDING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^[ \t]*(?:\d+ packages? (?:are|is) looking for funding|run `npm fund` for details)[ \t]*\r?(?:\n|$)").unwrap()
 });
+// Notices that ride along with real output and never change what an agent does next.
+static NOTICES: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(concat!(
+        r#"(?m)^[ \t]*(?:npm warn Unknown (?:user|env|project|builtin|global) config "[^"\r\n]+"\. "#,
+        r"This will stop working in the next major version of npm\.[^\r\n]*",
+        r"|\(Use `[^`\r\n]+ --trace-(?:warnings|deprecation) \.\.\.` to show where the warning was created\))",
+        r"[ \t]*\r?(?:\n|$)"
+    ))
+    .unwrap()
+});
+// A failed link prints the whole linker invocation: tens of KB of object paths.
+static LINKER_COMMAND: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?m)^([ \t]*= note: )"(?:[^"\r\n]*[\\/])?([^"\\/\r\n]+)" [^\r\n]{400,}$"#)
+        .unwrap()
+});
+// rustfmt reports Windows paths in their verbatim `\\?\` form.
+static FMT_VERBATIM: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^Diff in \\\\\?\\").unwrap());
 static CARGO_PROGRESS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^[ \t]*(?:Compiling|Checking|Fresh) [\w-]+ v\d[^\r\n]*(?:\r?\n|$)").unwrap()
 });
@@ -69,7 +87,12 @@ pub fn recognizes(input: &str) -> bool {
         || CARGO_WARNING.is_match(input)
         || SPINNERS.is_match(input)
         || FUNDING.is_match(input)
+        || NOTICES.is_match(input)
+        || LINKER_COMMAND.is_match(input)
+        || FMT_VERBATIM.is_match(input)
         || crate::cmds::js::captured_output::recognizes(input)
+        || crate::cmds::git::captured_output::recognizes(input)
+        || crate::cmds::dotnet::captured_output::recognizes(input)
         || input.lines().any(|line| {
             progress_kind(line.trim()) != 0
                 || matches!(line.trim(), "Build succeeded." | "Build FAILED.")
@@ -81,8 +104,18 @@ pub fn filter(input: &str) -> String {
     // directly to real warnings, summaries and command banners.
     let clean = SPINNERS.replace_all(input, "");
     let clean = FUNDING.replace_all(&clean, "");
+    let clean = NOTICES.replace_all(&clean, "");
+    let clean = LINKER_COMMAND.replace_all(&clean, |c: &regex::Captures| {
+        let omitted = c[0].len() - c[1].len();
+        format!(
+            "{}\"{}\" [RTK: {omitted}-byte linker command line omitted]",
+            &c[1], &c[2]
+        )
+    });
+    let clean = FMT_VERBATIM.replace_all(&clean, "Diff in ");
     let cargo = cargo_compilation(&clean);
-    let javascript = crate::cmds::js::captured_output::filter(&cargo);
+    let git = crate::cmds::git::captured_output::filter(&cargo);
+    let javascript = crate::cmds::js::captured_output::filter(&git);
     let mut lines = javascript.split_inclusive('\n').peekable();
     let mut output = String::with_capacity(javascript.len());
     let mut diagnostics = HashSet::new();
@@ -167,7 +200,7 @@ pub fn filter(input: &str) -> String {
             "\n[RTK: {duplicates} repeated build diagnostics omitted]\n"
         ));
     }
-    output
+    crate::cmds::dotnet::captured_output::filter(&output)
 }
 
 fn cargo_compilation(input: &str) -> String {
@@ -217,4 +250,37 @@ fn cargo_compilation(input: &str) -> String {
         ));
     }
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn notices_are_removed() {
+        let input = "npm warn Unknown user config \"python\". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.\n(node:1) Warning: something real\n(Use `node --trace-warnings ...` to show where the warning was created)\nok\n";
+        assert_eq!(filter(input), "(node:1) Warning: something real\nok\n");
+    }
+
+    #[test]
+    fn linker_command_is_shortened_and_error_kept() {
+        // rustc prints the invocation Debug-escaped, so paths carry doubled backslashes.
+        let objects = r#""C:\\t\\deps\\x.o" "#.repeat(40);
+        let input = format!(
+            "error: linking with `link.exe` failed: exit code: 1104\n  |\n  = note: \"D:\\\\VS\\\\bin\\\\link.exe\" \"/NOLOGO\" {objects}\n  = note: LINK : fatal error LNK1104: cannot open file 'x.exe'\n"
+        );
+        let output = filter(&input);
+        assert!(output.contains("  = note: \"link.exe\" [RTK: "), "{output}");
+        assert!(output.contains("-byte linker command line omitted]\n"));
+        assert!(output.contains("fatal error LNK1104: cannot open file 'x.exe'"));
+        assert!(output.len() < input.len() / 2);
+    }
+
+    #[test]
+    fn rustfmt_verbatim_prefix_is_dropped() {
+        assert_eq!(
+            filter("Diff in \\\\?\\D:\\src\\main.rs:41:\n"),
+            "Diff in D:\\src\\main.rs:41:\n"
+        );
+    }
 }

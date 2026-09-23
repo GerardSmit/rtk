@@ -76,7 +76,11 @@ mod core {
 }
 
 mod cmds {
+    pub mod dotnet {
+        pub mod captured_output;
+    }
     pub mod git {
+        pub mod captured_output;
         pub mod git_cmd;
     }
     pub mod go {
