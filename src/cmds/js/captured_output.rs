@@ -41,8 +41,18 @@ static DEPRECATION: LazyLock<Regex> =
 static VITE_ASSET: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(\S+/)\S+\s+\d+(?:\.\d+)? kB(?:\s+│ gzip:.*)?$").unwrap());
 
+/// `file(line,col): error TS1234: message`, as `tsc`, `vue-tsc` and `nuxt typecheck` print it.
+static TS_ERROR: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(\S[^\r\n]*?)\((\d+,\d+)\): error (TS\d+): ([^\r\n]*)$").unwrap()
+});
+
 pub fn recognizes(input: &str) -> bool {
-    NODE_TOTALS.is_match(input)
+    input
+        .lines()
+        .filter(|line| TS_ERROR.is_match(line.trim()))
+        .nth(2)
+        .is_some()
+        || NODE_TOTALS.is_match(input)
         || VITE_BANNER.is_match(input)
         || NUXT_BANNER.is_match(input)
         || (NEXT_BANNER.is_match(input) && input.contains("Creating an optimized production build"))
@@ -114,7 +124,141 @@ pub fn filter(input: &str) -> String {
             vite = false;
         }
     }
-    minimal_build_output(&filtered)
+    group_typescript(&minimal_build_output(&filtered))
+}
+
+/// One TypeScript error: file, `line,col`, code, and the message with any indented
+/// elaboration lines that followed it.
+struct TsError<'a> {
+    file: &'a str,
+    position: &'a str,
+    code: &'a str,
+    message: String,
+}
+
+/// Three or more TypeScript errors become one block where the first one was. Every
+/// file, position, code and message stays; what goes is repetition. The block is laid
+/// out by file then message, or by message then file, whichever is shorter: a few
+/// messages across many files read best message-first, many messages per file file-first.
+fn group_typescript(input: &str) -> String {
+    let lines: Vec<&str> = input.split_inclusive('\n').collect();
+    let mut errors: Vec<TsError> = Vec::new();
+    let mut output = String::with_capacity(input.len());
+    let mut first = None;
+    let mut index = 0;
+    while index < lines.len() {
+        let line = lines[index];
+        index += 1;
+        let Some(c) = TS_ERROR.captures(line.trim()) else {
+            output.push_str(line);
+            continue;
+        };
+        first.get_or_insert(output.len());
+        let (_, [file, position, code, message]) = c.extract();
+        let mut message = message.to_string();
+        // tsc indents the elaboration of an error ("Type 'A' is not assignable ...").
+        while index < lines.len()
+            && lines[index].starts_with([' ', '\t'])
+            && !lines[index].trim().is_empty()
+            && !TS_ERROR.is_match(lines[index].trim())
+        {
+            message.push_str("\n    ");
+            message.push_str(lines[index].trim());
+            index += 1;
+        }
+        errors.push(TsError {
+            file,
+            position,
+            code,
+            message,
+        });
+    }
+    let Some(first) = first.filter(|_| errors.len() >= 3) else {
+        return input.to_string();
+    };
+    let by_file = typescript_by_file(&errors);
+    let by_message = typescript_by_message(&errors);
+    let (layout, body) = if by_file.len() <= by_message.len() {
+        ("file, then message", by_file)
+    } else {
+        ("message, then file", by_message)
+    };
+    let mut block = format!(
+        "tsc: {} errors grouped by {layout} (every location kept):\n{body}",
+        errors.len()
+    );
+    if first > 0 && !output[..first].ends_with('\n') {
+        block.insert(0, '\n');
+    }
+    output.insert_str(first, &block);
+    if output.len() < input.len() {
+        output
+    } else {
+        input.to_string()
+    }
+}
+
+/// Keys in first-seen order, each with its members.
+fn ordered_groups<'e, 'a: 'e, K: PartialEq>(
+    errors: impl IntoIterator<Item = &'e TsError<'a>>,
+    key: impl Fn(&'e TsError<'a>) -> K,
+) -> Vec<(K, Vec<&'e TsError<'a>>)> {
+    let mut groups: Vec<(K, Vec<&TsError>)> = Vec::new();
+    for error in errors {
+        let k = key(error);
+        match groups.iter_mut().find(|(seen, _)| *seen == k) {
+            Some((_, members)) => members.push(error),
+            None => groups.push((k, vec![error])),
+        }
+    }
+    groups
+}
+
+fn typescript_by_file(errors: &[TsError]) -> String {
+    let mut body = String::new();
+    for (file, members) in ordered_groups(errors, |e| e.file) {
+        if let [one] = members.as_slice() {
+            body.push_str(&format!(
+                "{file}({}): {}: {}\n",
+                one.position, one.code, one.message
+            ));
+            continue;
+        }
+        body.push_str(&format!("{file}:\n"));
+        for ((code, message), same) in
+            ordered_groups(members.iter().copied(), |e| (e.code, e.message.as_str()))
+        {
+            let positions: Vec<&str> = same.iter().map(|e| e.position).collect();
+            body.push_str(&format!("  ({}) {code}: {message}\n", positions.join("; ")));
+        }
+    }
+    body
+}
+
+fn typescript_by_message(errors: &[TsError]) -> String {
+    let mut body = String::new();
+    for ((code, message), members) in ordered_groups(errors, |e| (e.code, e.message.as_str())) {
+        if let [one] = members.as_slice() {
+            body.push_str(&format!(
+                "{}({}): {code}: {message}\n",
+                one.file, one.position
+            ));
+            continue;
+        }
+        let places: Vec<String> = ordered_groups(members.iter().copied(), |e| e.file)
+            .into_iter()
+            .map(|(file, at)| {
+                let positions: Vec<&str> = at.iter().map(|e| e.position).collect();
+                format!("{file}({})", positions.join("; "))
+            })
+            .collect();
+        body.push_str(&format!(
+            "{code} ×{}: {message}\n  {}\n",
+            members.len(),
+            places.join("; ")
+        ));
+    }
+    body
 }
 
 fn minimal_build_output(input: &str) -> String {
@@ -248,4 +392,84 @@ fn minimal_build_output(input: &str) -> String {
         output.push_str(line);
     }
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn many_errors_per_file_group_file_first() {
+        let input = concat!(
+            "src/theme.ts(2,10): error TS2724: '\"./api/models\"' has no exported member named 'ItemModel'.\n",
+            "src/views/Text.tsx(5,34): error TS2339: Property 'defaultProps' does not exist on type 'Box'.\n",
+            "src/views/Text.tsx(22,70): error TS2339: Property 'defaultProps' does not exist on type 'Box'.\n",
+            "src/views/Text.tsx(36,35): error TS2339: Property 'defaultProps' does not exist on type 'Box'.\n",
+            "src/views/Text.tsx(40,1): error TS2307: Cannot find module 'ui-kit' or its corresponding type declarations.\n",
+            "Found 5 errors in 2 files.\n",
+        );
+        assert_eq!(
+            filter(input),
+            concat!(
+                "tsc: 5 errors grouped by file, then message (every location kept):\n",
+                "src/theme.ts(2,10): TS2724: '\"./api/models\"' has no exported member named 'ItemModel'.\n",
+                "src/views/Text.tsx:\n",
+                "  (5,34; 22,70; 36,35) TS2339: Property 'defaultProps' does not exist on type 'Box'.\n",
+                "  (40,1) TS2307: Cannot find module 'ui-kit' or its corresponding type declarations.\n",
+                "Found 5 errors in 2 files.\n",
+            )
+        );
+    }
+
+    #[test]
+    fn one_error_across_many_files_groups_message_first() {
+        let line = |file: &str, pos: &str| {
+            format!(
+                "src/{file}.ts({pos}): error TS7006: Parameter 'event' implicitly has an 'any' type.\n"
+            )
+        };
+        let input = format!(
+            "> tsc --noEmit\n{}{}{}{}",
+            line("a", "1,2"),
+            line("b", "3,4"),
+            line("b", "9,9"),
+            line("c", "5,6")
+        );
+        assert_eq!(
+            filter(&input),
+            concat!(
+                "> tsc --noEmit\n",
+                "tsc: 4 errors grouped by message, then file (every location kept):\n",
+                "TS7006 ×4: Parameter 'event' implicitly has an 'any' type.\n",
+                "  src/a.ts(1,2); src/b.ts(3,4; 9,9); src/c.ts(5,6)\n",
+            )
+        );
+    }
+
+    #[test]
+    fn elaboration_lines_stay_with_their_error() {
+        let input = concat!(
+            "a.ts(1,1): error TS2322: Type 'A' is not assignable to type 'B'.\n",
+            "  Types of property 'x' are incompatible.\n",
+            "a.ts(2,1): error TS2322: Type 'A' is not assignable to type 'B'.\n",
+            "  Types of property 'y' are incompatible.\n",
+            "b.ts(3,1): error TS2304: Cannot find name 'z'.\n",
+        );
+        let output = filter(input);
+        assert!(
+            output.contains("Types of property 'x' are incompatible."),
+            "{output}"
+        );
+        assert!(
+            output.contains("Types of property 'y' are incompatible."),
+            "{output}"
+        );
+        assert!(output.contains("(1,1)") && output.contains("(2,1)") && output.contains("(3,1)"));
+    }
+
+    #[test]
+    fn two_errors_stay_verbatim() {
+        let input = "a.ts(1,1): error TS2304: Cannot find name 'z'.\nb.ts(3,1): error TS2304: Cannot find name 'z'.\n";
+        assert_eq!(filter(input), input);
+    }
 }
