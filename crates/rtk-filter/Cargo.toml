@@ -1,0 +1,21 @@
+[package]
+name = "rtk-filter"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.91"
+license = "Apache-2.0"
+description = "In-process RTK output filters without command execution or tracking"
+repository = "https://github.com/GerardSmit/rtk"
+publish = false
+
+[lib]
+path = "../../src/library.rs"
+
+[dependencies]
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+

@@ -87,3 +87,4 @@ assets = [
 [lints.rust]
 unsafe_code = "deny"
 warnings = "deny"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(rtk_library)'] }

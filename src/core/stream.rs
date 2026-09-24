@@ -1,10 +1,15 @@
+#[cfg(not(rtk_library))]
 use anyhow::{Context, Result};
 use std::borrow::Cow;
+#[cfg(not(rtk_library))]
 use std::io::{self, BufRead, BufReader, BufWriter, Read, Write};
+#[cfg(not(rtk_library))]
 use std::process::{Command, Stdio};
+#[cfg(not(rtk_library))]
 use std::sync::mpsc;
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 use regex::Regex;
 
 /// Read `reader` line by line, decoding each line through the console code
@@ -23,6 +28,7 @@ use regex::Regex;
 /// [`decode_process_output`](super::utils::decode_process_output) exists to
 /// read, so the streamed path decodes them the same way the captured path
 /// does rather than going straight to U+FFFD.
+#[cfg(not(rtk_library))]
 fn read_lines_lossy(reader: impl Read) -> impl Iterator<Item = String> {
     BufReader::new(reader).split(b'\n').filter_map(|res| {
         let mut buf = match res {
@@ -39,6 +45,7 @@ fn read_lines_lossy(reader: impl Read) -> impl Iterator<Item = String> {
     })
 }
 
+#[cfg(not(rtk_library))]
 pub trait StreamFilter {
     fn feed_line(&mut self, line: &str) -> Option<String>;
     fn flush(&mut self) -> String;
@@ -60,6 +67,7 @@ pub trait BlockHandler {
     fn format_summary(&self, exit_code: i32, raw: &str) -> Option<String>;
 }
 
+#[cfg(not(rtk_library))]
 pub struct BlockStreamFilter<H: BlockHandler> {
     handler: H,
     in_block: bool,
@@ -67,6 +75,7 @@ pub struct BlockStreamFilter<H: BlockHandler> {
     blocks_emitted: usize,
 }
 
+#[cfg(not(rtk_library))]
 impl<H: BlockHandler> BlockStreamFilter<H> {
     pub fn new(handler: H) -> Self {
         Self {
@@ -88,6 +97,7 @@ impl<H: BlockHandler> BlockStreamFilter<H> {
     }
 }
 
+#[cfg(not(rtk_library))]
 impl<H: BlockHandler> StreamFilter for BlockStreamFilter<H> {
     fn feed_line(&mut self, line: &str) -> Option<String> {
         let line = self.handler.normalize_line(line);
@@ -131,6 +141,7 @@ impl<H: BlockHandler> StreamFilter for BlockStreamFilter<H> {
 /// Default behaviour is KEEP — every line is emitted unchanged. Implementors
 /// opt in to dropping noise via [`LineHandler::should_skip`] and may capture
 /// state for the final summary via [`LineHandler::observe_line`].
+#[cfg(not(rtk_library))]
 pub trait LineHandler {
     fn should_skip(&mut self, _line: &str) -> bool {
         false
@@ -141,16 +152,19 @@ pub trait LineHandler {
     fn format_summary(&self, exit_code: i32, raw: &str) -> Option<String>;
 }
 
+#[cfg(not(rtk_library))]
 pub struct LineStreamFilter<H: LineHandler> {
     handler: H,
 }
 
+#[cfg(not(rtk_library))]
 impl<H: LineHandler> LineStreamFilter<H> {
     pub fn new(handler: H) -> Self {
         Self { handler }
     }
 }
 
+#[cfg(not(rtk_library))]
 impl<H: LineHandler> StreamFilter for LineStreamFilter<H> {
     fn feed_line(&mut self, line: &str) -> Option<String> {
         if self.handler.should_skip(line) {
@@ -170,6 +184,7 @@ impl<H: LineHandler> StreamFilter for LineStreamFilter<H> {
 }
 
 #[cfg(test)] // available for command modules; currently used in tests only
+#[cfg(not(rtk_library))]
 pub struct RegexBlockFilter {
     start_re: Regex,
     skip_prefixes: Vec<String>,
@@ -178,6 +193,7 @@ pub struct RegexBlockFilter {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 impl RegexBlockFilter {
     pub fn new(tool_name: &str, start_pattern: &str) -> Self {
         Self {
@@ -203,6 +219,7 @@ impl RegexBlockFilter {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 impl BlockHandler for RegexBlockFilter {
     fn should_skip(&mut self, line: &str) -> bool {
         self.skip_prefixes.iter().any(|p| line.starts_with(p))
@@ -233,11 +250,13 @@ impl BlockHandler for RegexBlockFilter {
     }
 }
 
+#[cfg(not(rtk_library))]
 pub trait StdinFilter: Send {
     fn feed_line(&mut self, line: &str) -> Option<String>;
     fn flush(&mut self) -> String;
 }
 
+#[cfg(not(rtk_library))]
 pub enum FilterMode<'a> {
     Streaming(Box<dyn StreamFilter + 'a>),
     #[allow(dead_code)]
@@ -246,6 +265,7 @@ pub enum FilterMode<'a> {
     Passthrough,
 }
 
+#[cfg(not(rtk_library))]
 pub enum StdinMode {
     Inherit,
     #[allow(dead_code)] // future API: stdin filtering for interactive commands
@@ -253,6 +273,7 @@ pub enum StdinMode {
     Null,
 }
 
+#[cfg(not(rtk_library))]
 pub struct StreamResult {
     pub exit_code: i32,
     pub raw: String,
@@ -261,6 +282,7 @@ pub struct StreamResult {
     pub filtered: String,
 }
 
+#[cfg(not(rtk_library))]
 impl StreamResult {
     #[cfg(test)]
     pub fn success(&self) -> bool {
@@ -270,6 +292,7 @@ impl StreamResult {
 
 // #2375
 #[cfg(unix)]
+#[cfg(not(rtk_library))]
 mod signal_relay {
     use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
     use std::thread;
@@ -378,6 +401,7 @@ mod signal_relay {
 }
 
 #[cfg(not(unix))]
+#[cfg(not(rtk_library))]
 mod signal_relay {
     pub struct Relay;
 
@@ -390,6 +414,7 @@ mod signal_relay {
 
 // #2375
 #[cfg(unix)]
+#[cfg(not(rtk_library))]
 pub fn die_by_relayed_signal() {
     let Some(sig) = signal_relay::relayed() else {
         return;
@@ -403,8 +428,10 @@ pub fn die_by_relayed_signal() {
 }
 
 #[cfg(not(unix))]
+#[cfg(not(rtk_library))]
 pub fn die_by_relayed_signal() {}
 
+#[cfg(not(rtk_library))]
 pub fn status_to_exit_code(status: std::process::ExitStatus) -> i32 {
     if let Some(code) = status.code() {
         return code;
@@ -420,8 +447,10 @@ pub fn status_to_exit_code(status: std::process::ExitStatus) -> i32 {
 }
 
 // ISSUE #897: ChildGuard RAII prevents zombie processes that caused kernel panic
+#[cfg(not(rtk_library))]
 pub const RAW_CAP: usize = 10_485_760; // 10 MiB
 
+#[cfg(not(rtk_library))]
 pub fn run_streaming(
     cmd: &mut Command,
     stdin_mode: StdinMode,
@@ -691,12 +720,14 @@ pub fn run_streaming(
     })
 }
 
+#[cfg(not(rtk_library))]
 pub struct CaptureResult {
     pub stdout: String,
     pub stderr: String,
     pub exit_code: i32,
 }
 
+#[cfg(not(rtk_library))]
 impl CaptureResult {
     pub fn success(&self) -> bool {
         self.exit_code == 0
@@ -707,12 +738,14 @@ impl CaptureResult {
     }
 }
 
+#[cfg(not(rtk_library))]
 pub fn exec_capture(cmd: &mut Command) -> Result<CaptureResult> {
     cmd.stdin(Stdio::null());
     capture(cmd)
 }
 
 /// Like [`exec_capture`] but inherits stdin so a wrapped engine can read a piped stdin.
+#[cfg(not(rtk_library))]
 pub fn exec_capture_stdin(cmd: &mut Command) -> Result<CaptureResult> {
     cmd.stdin(Stdio::inherit());
     capture(cmd)
@@ -725,6 +758,7 @@ pub fn exec_capture_stdin(cmd: &mut Command) -> Result<CaptureResult> {
 /// announces that on stderr, so callers moving here from a hand-rolled
 /// `.output()` keep the diagnostic instead of losing it. The program name is
 /// used as the label so no call site has to pass one.
+#[cfg(not(rtk_library))]
 fn capture(cmd: &mut Command) -> Result<CaptureResult> {
     let raw = capture_raw(cmd)?;
     Ok(CaptureResult {
@@ -740,6 +774,7 @@ fn capture(cmd: &mut Command) -> Result<CaptureResult> {
 /// `process terminated by signal N` diagnostic is emitted uniformly whether the
 /// caller decodes the bytes ([`capture`]) or keeps them raw ([`exec_capture_bytes`]),
 /// instead of the raw path silently dropping it.
+#[cfg(not(rtk_library))]
 fn capture_raw(cmd: &mut Command) -> Result<CaptureBytes> {
     let program = cmd.get_program().to_string_lossy().into_owned();
     let output = cmd.output().context("Failed to execute command")?;
@@ -753,12 +788,14 @@ fn capture_raw(cmd: &mut Command) -> Result<CaptureBytes> {
 
 /// Raw-byte capture result, for callers that must control decoding themselves —
 /// e.g. non-UTF-8 output that [`exec_capture`]'s `from_utf8_lossy` would corrupt.
+#[cfg(not(rtk_library))]
 pub struct CaptureBytes {
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
     pub exit_code: i32,
 }
 
+#[cfg(not(rtk_library))]
 impl CaptureBytes {
     pub fn success(&self) -> bool {
         self.exit_code == 0
@@ -766,12 +803,14 @@ impl CaptureBytes {
 }
 
 /// Like [`exec_capture`] but returns raw bytes so the caller decides how to decode.
+#[cfg(not(rtk_library))]
 pub fn exec_capture_bytes(cmd: &mut Command) -> Result<CaptureBytes> {
     cmd.stdin(Stdio::null());
     capture_raw(cmd)
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 pub(crate) mod tests {
     use super::*;
     use std::process::Command;

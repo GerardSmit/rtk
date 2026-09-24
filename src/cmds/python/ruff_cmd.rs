@@ -1,13 +1,19 @@
 //! Filters Ruff linter and formatter output.
 
 use crate::core::config;
+#[cfg(not(rtk_library))]
 use crate::core::runner;
 use crate::core::truncate::CAP_WARNINGS;
+#[cfg(rtk_library)]
+use crate::core::utils::truncate;
+#[cfg(not(rtk_library))]
 use crate::core::utils::{resolved_command, truncate};
+#[cfg(not(rtk_library))]
 use anyhow::Result;
 use serde::Deserialize;
 use std::collections::HashMap;
 
+#[cfg(not(rtk_library))]
 const RUFF_SUBCOMMANDS: &[&str] = &[
     "analyze",
     "check",
@@ -45,6 +51,7 @@ struct RuffDiagnostic {
     fix: Option<RuffFix>,
 }
 
+#[cfg(not(rtk_library))]
 pub fn run(args: &[String], verbose: u8) -> Result<i32> {
     let is_check = is_check_invocation(args);
 
@@ -113,6 +120,7 @@ pub fn run(args: &[String], verbose: u8) -> Result<i32> {
     )
 }
 
+#[cfg(not(rtk_library))]
 fn is_check_invocation(args: &[String]) -> bool {
     args.first().is_none_or(|arg| {
         arg == "check" || (!arg.starts_with('-') && !RUFF_SUBCOMMANDS.contains(&arg.as_str()))
@@ -366,6 +374,7 @@ fn compact_path(path: &str) -> String {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

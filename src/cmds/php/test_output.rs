@@ -62,6 +62,7 @@ pub fn filter_test_runner_output(output: &str) -> String {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

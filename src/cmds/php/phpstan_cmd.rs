@@ -4,9 +4,16 @@
 //! file and sorted by error count. Falls back to text parsing when the user
 //! specifies a custom format or when injected JSON output fails to parse.
 
+#[cfg(not(rtk_library))]
 use super::utils::php_tool_command;
+#[cfg(not(rtk_library))]
 use crate::core::runner;
+#[cfg(not(rtk_library))]
 use crate::core::utils::exit_code_from_status;
+#[cfg(rtk_library)]
+#[cfg(not(rtk_library))]
+use anyhow::Result;
+#[cfg(not(rtk_library))]
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -47,6 +54,7 @@ struct PhpstanMessage {
 
 // ── Public entry point ───────────────────────────────────────────────────────
 
+#[cfg(not(rtk_library))]
 pub fn run(args: &[String], verbose: u8) -> Result<i32> {
     // Composer-aware resolution (COMPOSER_BIN_DIR / config.bin-dir), matching
     // the other php tools, with PATH fallback for a global install.
@@ -98,11 +106,13 @@ pub fn run(args: &[String], verbose: u8) -> Result<i32> {
 /// True when the invocation runs the `analyse`/`analyze` subcommand. The
 /// subcommand may appear after global options (`phpstan -c x.neon analyse src/`),
 /// so scan every arg rather than just the first.
+#[cfg(not(rtk_library))]
 fn is_analyse_command(args: &[String]) -> bool {
     args.iter().any(|a| a == "analyse" || a == "analyze")
 }
 
 /// Which `--error-format` the user requested, if any.
+#[cfg(not(rtk_library))]
 enum ErrorFormat {
     /// No format flag — rtk injects `--error-format=json`.
     Unspecified,
@@ -113,6 +123,7 @@ enum ErrorFormat {
 }
 
 /// Parse `--error-format=<v>` / `--error-format <v>` from the args.
+#[cfg(not(rtk_library))]
 fn detect_error_format(args: &[String]) -> ErrorFormat {
     let mut it = args.iter().peekable();
     while let Some(a) = it.next() {
@@ -269,6 +280,7 @@ fn compact_php_path(path: &str) -> String {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
     use crate::core::utils::count_tokens;

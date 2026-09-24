@@ -1,23 +1,35 @@
 //! Filters git output — log, status, diff, and more — keeping just the essential info.
 
+#[cfg(not(rtk_library))]
 use crate::core::arg_tokenizer::{
     self, Attachment, Dialect, Token, TokenKind, ValueSpec, is_digit_run,
 };
+#[cfg(not(rtk_library))]
 use crate::core::args_utils;
+#[cfg(not(rtk_library))]
 use crate::core::guard::never_worse;
+#[cfg(not(rtk_library))]
 use crate::core::runner::{self, RunOptions};
+#[cfg(not(rtk_library))]
 use crate::core::stream::{
     self, CaptureResult, FilterMode, LineHandler, LineStreamFilter, StdinMode, exec_capture,
     exec_capture_stdin,
 };
+#[cfg(not(rtk_library))]
 use crate::core::tracking;
+#[cfg(not(rtk_library))]
 use crate::core::truncate::{CAP_LIST, CAP_WARNINGS};
+#[cfg(not(rtk_library))]
 use crate::core::utils::{exit_code_from_status, join_with_overflow, resolved_command, strip_ansi};
+#[cfg(not(rtk_library))]
 use anyhow::{Context, Result};
+#[cfg(not(rtk_library))]
 use std::ffi::OsString;
+#[cfg(not(rtk_library))]
 use std::process::Command;
 
 #[derive(Debug, Clone)]
+#[cfg(not(rtk_library))]
 pub enum GitCommand {
     Diff,
     Log,
@@ -36,6 +48,7 @@ pub enum GitCommand {
 
 /// Create a git Command with global options (e.g. -C, -c, --git-dir, --work-tree)
 /// prepended before any subcommand arguments.
+#[cfg(not(rtk_library))]
 fn git_cmd(global_args: &[String]) -> Command {
     let mut cmd = resolved_command("git");
     for arg in global_args {
@@ -49,12 +62,14 @@ fn git_cmd(global_args: &[String]) -> Command {
 /// We only use this for non-user-facing parses where RTK depends on git's
 /// English status phrases. User-visible passthrough output keeps the user's
 /// locale.
+#[cfg(not(rtk_library))]
 fn git_cmd_c_locale(global_args: &[String]) -> Command {
     let mut cmd = git_cmd(global_args);
     cmd.env("LC_ALL", "C");
     cmd
 }
 
+#[cfg(not(rtk_library))]
 fn uses_compact_status_path(args: &[String]) -> bool {
     let tokens = arg_tokenizer::tokenize(args);
 
@@ -81,6 +96,7 @@ fn uses_compact_status_path(args: &[String]) -> bool {
     saw_branch || !saw_flag
 }
 
+#[cfg(not(rtk_library))]
 fn build_status_command(args: &[String], global_args: &[String]) -> Command {
     let mut cmd = git_cmd(global_args);
     cmd.arg("status");
@@ -92,6 +108,7 @@ fn build_status_command(args: &[String], global_args: &[String]) -> Command {
     cmd
 }
 
+#[cfg(not(rtk_library))]
 pub fn run(
     cmd: GitCommand,
     args: &[String],
@@ -135,6 +152,7 @@ pub fn run(
 
 /// Splits a restored `stash` region back into subcommand and remainder, the way clap did
 /// before the `--` came back: a leading token that is neither a flag nor the boundary.
+#[cfg(not(rtk_library))]
 fn split_stash_region(region: &[String]) -> (Option<String>, Vec<String>) {
     let tokens = arg_tokenizer::tokenize(region);
     match tokens.first() {
@@ -149,6 +167,7 @@ fn split_stash_region(region: &[String]) -> (Option<String>, Vec<String>) {
 /// RTK's own `--stat` header would answer a question the user did not ask. On `git show` the
 /// same flags ask for the commit summary, which is exactly what the compact form prints, so
 /// this is deliberately not part of [`diff_wants_raw_shape`].
+#[cfg(not(rtk_library))]
 fn suppresses_diff_body(token: &Token<'_>) -> bool {
     matches!(
         (token.kind, token.text),
@@ -162,6 +181,7 @@ fn suppresses_diff_body(token: &Token<'_>) -> bool {
 /// `--no-patch` and `--quiet` lose to a *later* `-p`/`--patch`/`-U<n>` and win over an earlier
 /// one (`git show -s -p` prints the diff, `git show -p -s` does not -- git 2.53). Taking the
 /// suppressors order-independently swallowed a patch the user had asked for last.
+#[cfg(not(rtk_library))]
 fn body_is_suppressed(tokens: &[Token<'_>]) -> bool {
     // `-s`/`--no-patch` and a patch request resolve by last flag wins: `git show -s -p` prints
     // the diff, `git show -p -s` does not (git 2.53).
@@ -182,11 +202,13 @@ fn body_is_suppressed(tokens: &[Token<'_>]) -> bool {
 
 /// `--quiet`, which is `--exit-code`'s companion rather than a shape flag. Only `run_diff`
 /// treats it as one, and there it takes the raw route before any of this is consulted.
+#[cfg(not(rtk_library))]
 fn is_quiet_flag(token: &Token<'_>) -> bool {
     (token.kind, token.text) == (TokenKind::Long, "quiet")
 }
 
 /// The suppressors that really do replace the body: `-s` and its long spelling.
+#[cfg(not(rtk_library))]
 fn hard_suppresses_diff_body(token: &Token<'_>) -> bool {
     matches!(
         (token.kind, token.text),
@@ -194,6 +216,7 @@ fn hard_suppresses_diff_body(token: &Token<'_>) -> bool {
     )
 }
 
+#[cfg(not(rtk_library))]
 fn requests_patch_output(token: &Token<'_>) -> bool {
     match token.kind {
         TokenKind::Long => matches!(
@@ -211,6 +234,7 @@ fn requests_patch_output(token: &Token<'_>) -> bool {
 /// its siblings with it -- `-pl 100` lost the `-l` and left `100` behind as a bogus revision.
 /// `args` with any `--oneline` removed, by the token's own `source_index` so a pathspec of that
 /// name past `--` is left alone.
+#[cfg(not(rtk_library))]
 fn args_without_oneline(args: &[String], tokens: &[Token<'_>]) -> Vec<String> {
     let dropped: Vec<usize> = tokens
         .iter()
@@ -227,6 +251,7 @@ fn args_without_oneline(args: &[String], tokens: &[Token<'_>]) -> Vec<String> {
         .collect()
 }
 
+#[cfg(not(rtk_library))]
 fn args_without_patch_shape(args: &[String], tokens: &[Token<'_>]) -> Vec<String> {
     let mut out: Vec<String> = Vec::with_capacity(args.len());
     for (index, arg) in args.iter().enumerate() {
@@ -258,6 +283,7 @@ fn args_without_patch_shape(args: &[String], tokens: &[Token<'_>]) -> Vec<String
     out
 }
 
+#[cfg(not(rtk_library))]
 fn run_diff(
     args: &[String],
     max_lines: Option<usize>,
@@ -407,12 +433,14 @@ fn run_diff(
 /// It does outrank RTK's own `--pretty=format:`, which is passed before the user's args, so the
 /// stat step drops it from what it forwards (see `args_without_oneline`); otherwise the commit
 /// header that step suppresses comes back and the summary prints twice.
+#[cfg(not(rtk_library))]
 fn show_wants_format(tokens: &[Token<'_>]) -> bool {
     tokens
         .iter()
         .any(|t| t.kind == TokenKind::Long && matches!(t.text, "format" | "pretty"))
 }
 
+#[cfg(not(rtk_library))]
 fn show_cmd(
     global_args: &[String],
     args: &[String],
@@ -434,6 +462,7 @@ fn show_cmd(
     cmd
 }
 
+#[cfg(not(rtk_library))]
 fn run_show(
     args: &[String],
     max_lines: Option<usize>,
@@ -753,6 +782,7 @@ fn run_show(
 /// Takes tokens rather than raw args: a `--word-diff` consumed as another option's value
 /// (`--author --word-diff`) or sitting past `--` as a pathspec is not a word diff request, and
 /// real git agrees on both.
+#[cfg(not(rtk_library))]
 fn emits_word_diff(tokens: &[Token]) -> bool {
     let mut word_diff = false;
     for token in tokens {
@@ -772,6 +802,7 @@ fn emits_word_diff(tokens: &[Token]) -> bool {
 
 /// `rev:path` names a blob. The caller filters to free positionals first, so a flag's own
 /// value (`--pretty=format:...`) never reaches here.
+#[cfg(not(rtk_library))]
 fn is_blob_show_arg(arg: &str) -> bool {
     // Detect `rev:path` style arguments while ignoring flags like `--pretty=format:...`.
     // `:/text` is a commit-message search, not a blob, so it is excluded. `:path` and
@@ -803,6 +834,7 @@ fn is_blob_show_arg(arg: &str) -> bool {
 /// (`-- weird:name`) is excluded by scanning only the args before the first `--`; a
 /// trailing `-- <path>` beside a real object arg is thus ignored (git still dumps the
 /// blob) rather than emptying the list.
+#[cfg(not(rtk_library))]
 fn show_positionals(args: &[String]) -> Vec<&String> {
     let rev_args = match args.iter().position(|a| a == "--") {
         Some(sep) => &args[..sep],
@@ -828,6 +860,7 @@ fn show_positionals(args: &[String]) -> Vec<&String> {
 /// two that can drift: the same predicate the tokenizer folds with. `AttachedOnly` flags are
 /// excluded because they never take a separate token (`-M50` attaches, `-M 50` does not), and
 /// the cluster-position rule for solo-only flags is applied by the caller below.
+#[cfg(not(rtk_library))]
 fn consumes_next_token_as_value(arg: &str) -> bool {
     let (kind, name) = match arg.strip_prefix("--") {
         Some(rest) => (TokenKind::Long, rest),
@@ -853,6 +886,7 @@ fn consumes_next_token_as_value(arg: &str) -> bool {
 //
 // TODO(after #3681): replace this short-cluster walk with the ValueSpec factorization;
 // the per-char logic here is exactly what a ValueSpec table subsumes.
+#[cfg(not(rtk_library))]
 fn flag_token_consumes_next(arg: &str) -> bool {
     // A short cluster is a single leading `-` followed by non-empty flag chars (not the
     // `--long` form and not the bare `-` stdin sentinel). Everything else (`--foo`, `-`)
@@ -874,6 +908,7 @@ fn flag_token_consumes_next(arg: &str) -> bool {
 /// Whether a single-letter short flag takes a value (`-S`, `-G`, `-L`, …). Derived from
 /// [`consumes_next_token_as_value`] so the flag/value table stays the single source of
 /// truth and no parallel list can drift out of sync.
+#[cfg(not(rtk_library))]
 fn is_short_value_flag(c: char) -> bool {
     c.is_ascii() && consumes_next_token_as_value(format!("-{c}").as_str())
 }
@@ -882,6 +917,7 @@ fn is_short_value_flag(c: char) -> bool {
 /// windowing candidates. ALL of them are returned (not just the first) so `run_show`
 /// can `cat-file`-probe every one: a value operand a missed exotic cluster might leave
 /// behind is rejected by the probe, while the real blob elsewhere on the line is found.
+#[cfg(not(rtk_library))]
 fn blob_candidates(args: &[String]) -> Vec<&String> {
     show_positionals(args)
         .into_iter()
@@ -895,6 +931,7 @@ fn blob_candidates(args: &[String]) -> Vec<&String> {
 /// what git printed; their presence forces byte-identical raw passthrough instead of
 /// windowing. The `--no-*` spellings restore the default (no rewrite) and are safe, so
 /// only the enabling spellings count. Flags precede `--`, so scan up to it.
+#[cfg(not(rtk_library))]
 fn has_content_transform_flag(args: &[String]) -> bool {
     args.iter()
         .take_while(|a| *a != "--")
@@ -906,12 +943,14 @@ fn has_content_transform_flag(args: &[String]) -> bool {
 /// byte-identical with and without it), but the recovery hint omits it, so rather than
 /// bank on that holding for every git version and pathspec form we force byte-identical
 /// raw passthrough whenever one accompanies a blob.
+#[cfg(not(rtk_library))]
 fn has_trailing_pathspec(args: &[String]) -> bool {
     matches!(args.iter().position(|a| a == "--"), Some(sep) if args.len() > sep + 1)
 }
 
 /// Which `git show` handler an invocation routes to.
 #[derive(Debug, PartialEq, Eq)]
+#[cfg(not(rtk_library))]
 enum ShowRoute {
     /// A `<rev>:<path>` blob dump → byte-safe decode/window path.
     Blob,
@@ -933,6 +972,7 @@ enum ShowRoute {
 /// *looks like* `rev:path`. The authoritative blob decision is a `git cat-file -t`
 /// probe run by `run_show` (see `probe_is_blob`) on those candidates — the pre-filter
 /// keeps the probe off every other invocation.
+#[cfg(not(rtk_library))]
 fn show_route(args: &[String]) -> ShowRoute {
     if !blob_candidates(args).is_empty() {
         return ShowRoute::Blob;
@@ -944,6 +984,7 @@ fn show_route(args: &[String]) -> ShowRoute {
 /// summary passthrough vs. a compacted commit-diff. Split out from `show_route` so
 /// `run_show` can fall back to it when the `cat-file` probe rejects a `rev:path`
 /// candidate (a flag value like `-S 'url:1'`, or a tree/commit/bogus object).
+#[cfg(not(rtk_library))]
 fn commit_or_stat_route(args: &[String]) -> ShowRoute {
     // Tokenized, not string-matched: a pathspec named `--stat` past the boundary is not the
     // flag, `--prettyish` is not `--pretty`, and the shapes RTK cannot compact are more than
@@ -975,6 +1016,7 @@ fn commit_or_stat_route(args: &[String]) -> ShowRoute {
 ///
 // TODO(after #3681): once ValueSpec factorization lands, a flag pre-filter can avoid
 // the cat-file probe on the common path.
+#[cfg(not(rtk_library))]
 fn probe_is_blob(global_args: &[String], arg: &str) -> bool {
     let mut cmd = git_cmd(global_args);
     cmd.args(["cat-file", "-t", arg]);
@@ -985,11 +1027,13 @@ fn probe_is_blob(global_args: &[String], arg: &str) -> bool {
 }
 
 /// Byte budget for a blob preview before truncation kicks in (~2k tokens).
+#[cfg(not(rtk_library))]
 const MAX_BLOB_BYTES: Budget = Budget(8192);
 
 /// Byte budget after which a blob preview is truncated. A newtype rather than a bare
 /// `usize` so a call site can't silently pass some other length in its place.
 #[derive(Clone, Copy)]
+#[cfg(not(rtk_library))]
 struct Budget(usize);
 
 /// Decide how to window a `git show <rev>:<path>` blob. Returns
@@ -998,6 +1042,7 @@ struct Budget(usize);
 /// listing, or a single line too long to cut at a line boundary.
 ///
 /// Pure and side-effect free so it can be unit-tested against real blob fixtures.
+#[cfg(not(rtk_library))]
 fn blob_truncation(raw: &str, budget: Budget) -> Option<(&str, usize, usize)> {
     let Budget(budget) = budget;
     // No content-sniffing for object type here: the caller only reaches this function
@@ -1032,6 +1077,7 @@ fn blob_truncation(raw: &str, budget: Budget) -> Option<(&str, usize, usize)> {
 
 /// POSIX single-quote a blob arg so a hint with a space or shell metachar in the path
 /// stays copy-paste safe.
+#[cfg(not(rtk_library))]
 fn shell_single_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
 }
@@ -1043,6 +1089,7 @@ fn shell_single_quote(s: &str) -> String {
 /// `max_file_size` (1 MB by default), so it would refuse to store exactly the giant
 /// lockfiles this filter most wants to trim, leaving the biggest blobs un-windowed;
 /// re-running `git show` reproduces the tail at any size, with no cap and no I/O.
+#[cfg(not(rtk_library))]
 fn compact_blob_show(raw: &str, blob_arg: &str, global_args: &[String]) -> String {
     let Some((head, remaining, offset)) = blob_truncation(raw, MAX_BLOB_BYTES) else {
         return raw.to_string();
@@ -1075,6 +1122,7 @@ fn compact_blob_show(raw: &str, blob_arg: &str, global_args: &[String]) -> Strin
 /// decoding would corrupt, or a passthrough where any rewrite (BOM strip, transcode)
 /// would diverge from what plain `git show` emits — so it goes through the locked
 /// stdout handle as bytes rather than a `String`.
+#[cfg(not(rtk_library))]
 fn emit_raw_bytes_passthrough(
     bytes: &[u8],
     label: &str,
@@ -1546,7 +1594,9 @@ pub(crate) fn compact_diff(diff: &str, max_lines: usize) -> String {
 }
 
 /// RTK's default `git log` limit, applied whenever the user names none.
+#[cfg(not(rtk_library))]
 const DEFAULT_LOG_LIMIT: usize = 10;
+#[cfg(not(rtk_library))]
 const DEFAULT_LOG_LIMIT_ARG: &str = "-10";
 
 /// `git log <args>` for the raw passthrough, carrying RTK's default limit unless the user named
@@ -1559,6 +1609,7 @@ const DEFAULT_LOG_LIMIT_ARG: &str = "-10";
 /// positionals ("fatal: -10 option must come before non-option arguments") and a pathspec needs
 /// no boundary to be one. Only the limit is injected -- `--no-merges` would gut `--cc`/`-c`,
 /// whose entire purpose is the merge diff.
+#[cfg(not(rtk_library))]
 fn raw_log_passthrough_args(args: &[String], capped: bool) -> Vec<OsString> {
     let mut out = vec![OsString::from("log")];
     if capped {
@@ -1570,6 +1621,7 @@ fn raw_log_passthrough_args(args: &[String], capped: bool) -> Vec<OsString> {
 
 /// True when RTK's default limit applies: the user named no limit of their own and did not
 /// bound the walk with a revision range.
+#[cfg(not(rtk_library))]
 fn raw_log_is_capped(tokens: &[Token<'_>]) -> bool {
     !has_limit_flag(tokens) && !bounds_the_walk(tokens)
 }
@@ -1596,6 +1648,7 @@ fn raw_log_is_capped(tokens: &[Token<'_>]) -> bool {
 /// patch-shape flags, which are work with no answer in them.
 ///
 /// `None` when git refuses the command: RTK then says nothing rather than guessing.
+#[cfg(not(rtk_library))]
 fn walk_exceeds_limit(
     global_args: &[String],
     args: &[String],
@@ -1644,6 +1697,7 @@ fn walk_exceeds_limit(
 /// True for a `--pretty=format:%H` line, ignoring any `--graph` rail in front of it. No upper
 /// bound on the length: a SHA-256 object name is 64 characters, and rejecting it counted every
 /// commit in such a repository as none.
+#[cfg(not(rtk_library))]
 fn is_commit_name(line: &str) -> bool {
     let name =
         line.trim_matches(|c: char| c.is_whitespace() || matches!(c, '*' | '|' | '/' | '\\'));
@@ -1653,6 +1707,7 @@ fn is_commit_name(line: &str) -> bool {
 /// True when the walk is narrowed by what the commits changed rather than by where they are.
 /// git applies these after `--skip` and before `--max-count`, which is what makes the two
 /// probes above answer different questions.
+#[cfg(not(rtk_library))]
 fn selects_by_diff(tokens: &[Token<'_>]) -> bool {
     arg_tokenizer::before_dashdash(tokens).iter().any(|t| {
         match t.kind {
@@ -1682,6 +1737,7 @@ fn selects_by_diff(tokens: &[Token<'_>]) -> bool {
 /// reads only whether git printed anything, so a patch is work with no answer in it -- and
 /// with `diff.external` or a `textconv` driver configured, work that runs the user's own
 /// program one more time than they asked for.
+#[cfg(not(rtk_library))]
 fn log_probe_args(args: &[String], tokens: &[Token<'_>]) -> Vec<String> {
     let mut dropped: Vec<usize> = Vec::new();
     for token in tokens {
@@ -1715,6 +1771,7 @@ fn log_probe_args(args: &[String], tokens: &[Token<'_>]) -> Vec<String> {
 /// The user's own `--skip`, which RTK's has to absorb: git takes the last one, and RTK's is
 /// written first. Last one wins here too, matching git. Unparseable means git will reject the
 /// command anyway, so 0 is as good an answer as any.
+#[cfg(not(rtk_library))]
 fn user_skip(tokens: &[Token<'_>]) -> usize {
     tokens
         .iter()
@@ -1730,6 +1787,7 @@ fn user_skip(tokens: &[Token<'_>]) -> usize {
 /// A revision range is the one bound that is exact; `--since` and friends narrow the walk but
 /// not to any particular size, so those still get the limit (and now the notice with it). A
 /// relative path is excluded because it is a pathspec, not a range.
+#[cfg(not(rtk_library))]
 fn bounds_the_walk(tokens: &[Token<'_>]) -> bool {
     arg_tokenizer::before_dashdash(tokens).iter().any(|t| {
         t.is_free_positional()
@@ -1739,6 +1797,7 @@ fn bounds_the_walk(tokens: &[Token<'_>]) -> bool {
     })
 }
 
+#[cfg(not(rtk_library))]
 fn run_log(
     args: &[String],
     _max_lines: Option<usize>,
@@ -1880,6 +1939,7 @@ fn run_log(
 ///
 /// E.g. `--grep -p` searches messages for the literal string "-p"; it does not request patch
 /// output.
+#[cfg(not(rtk_library))]
 fn shared_long_takes_value(name: &str) -> bool {
     matches!(
         name,
@@ -1933,6 +1993,7 @@ fn shared_long_takes_value(name: &str) -> bool {
 /// separate token; `-n` and `-l` take one only when solo (`git log -pn 2` fails against git
 /// 2.53, and `-l` is kept solo-only out of caution -- only run_log uses this, where a stray
 /// positional is inert).
+#[cfg(not(rtk_library))]
 fn log_takes_value(kind: TokenKind, name: &str) -> Option<ValueSpec> {
     match kind {
         TokenKind::Long => shared_long_takes_value(name).then(ValueSpec::value),
@@ -1949,6 +2010,7 @@ fn log_takes_value(kind: TokenKind, name: &str) -> Option<ValueSpec> {
 /// `diff`/`show`'s grammar. Same long list, but `-l` is the rename limit here and *does*
 /// cluster: `git diff -wl 100` works where `git log -cl 2` does not. Sharing log's short
 /// grammar made RTK read the 100 as a pathspec and splice its own flags in front of it.
+#[cfg(not(rtk_library))]
 fn diff_takes_value(kind: TokenKind, name: &str) -> Option<ValueSpec> {
     match kind {
         TokenKind::Long => shared_long_takes_value(name).then(ValueSpec::value),
@@ -1962,15 +2024,18 @@ fn diff_takes_value(kind: TokenKind, name: &str) -> Option<ValueSpec> {
     }
 }
 
+#[cfg(not(rtk_library))]
 fn tokenize_git_diff_args(args: &[String]) -> Vec<Token<'_>> {
     arg_tokenizer::tokenize_grammar(args, &diff_takes_value, Dialect::Posix)
 }
 
+#[cfg(not(rtk_library))]
 fn tokenize_git_log_args(args: &[String]) -> Vec<Token<'_>> {
     arg_tokenizer::tokenize_grammar(args, &log_takes_value, Dialect::Posix)
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 fn real_flag_args(args: &[String]) -> Vec<&str> {
     tokenize_git_log_args(args)
         .iter()
@@ -1983,6 +2048,7 @@ fn real_flag_args(args: &[String]) -> Vec<&str> {
 /// name lists) in a way incompatible with RTK's injected `--pretty=format` markers, requiring
 /// the raw passthrough path instead (see [`requests_raw_log_output`]). `diff`/`show` use the
 /// narrower [`diff_wants_raw_shape`]/[`show_wants_raw_shape`] instead.
+#[cfg(not(rtk_library))]
 fn log_wants_raw_shape(token: &Token<'_>, tokens: &[Token<'_>]) -> bool {
     // Every `--diff-merges` format but `off`/`none` emits a patch (git 2.53), and log's
     // one-line-per-commit compaction cannot represent one -- the same reason `-p` is listed
@@ -2029,6 +2095,7 @@ fn log_wants_raw_shape(token: &Token<'_>, tokens: &[Token<'_>]) -> bool {
 /// `diff`'s raw-output grammar: `show`'s, plus `--quiet`. A strict superset, so it composes
 /// rather than repeating the list -- `git diff --quiet` prints nothing and exits 1 on a
 /// difference (git 2.53), so there is nothing to compact and the exit code has to survive.
+#[cfg(not(rtk_library))]
 fn diff_wants_raw_shape(token: &Token<'_>, tokens: &[Token<'_>]) -> bool {
     matches!((token.kind, token.text), (TokenKind::Long, "quiet"))
         || show_wants_raw_shape(token, tokens)
@@ -2043,6 +2110,7 @@ fn diff_wants_raw_shape(token: &Token<'_>, tokens: &[Token<'_>]) -> bool {
 /// Excludes `--patch`/`-p`/`-u` and `--unified`/`-U`: unlike `log`, `diff`/`show`'s default
 /// output already *is* patch text, so those are redundant with the default rather than a shape
 /// RTK cannot produce. Delegates the rest to [`log_wants_raw_shape`] so the two can't drift.
+#[cfg(not(rtk_library))]
 fn show_wants_raw_shape(token: &Token<'_>, tokens: &[Token<'_>]) -> bool {
     if matches!(
         (token.kind, token.text),
@@ -2072,6 +2140,7 @@ fn show_wants_raw_shape(token: &Token<'_>, tokens: &[Token<'_>]) -> bool {
 
 /// Test-only convenience wrapper.
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 fn requests_raw_log_output(args: &[String]) -> bool {
     let tokens = tokenize_git_log_args(args);
     tokens.iter().any(|t| log_wants_raw_shape(t, &tokens))
@@ -2082,12 +2151,14 @@ fn requests_raw_log_output(args: &[String]) -> bool {
 /// `run_log` shares a single tokenization via [`parse_limit_from_tokens`]
 /// instead; this convenience wrapper exists for tests.
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 fn parse_user_limit(args: &[String]) -> Option<usize> {
     parse_limit_from_tokens(&tokenize_git_log_args(args))
 }
 
 /// True if the user explicitly requested a commit-count limit (-N, -n N, --max-count=N,
 /// --max-count N).
+#[cfg(not(rtk_library))]
 fn has_limit_flag(tokens: &[Token<'_>]) -> bool {
     tokens.iter().any(|t| match t.kind {
         TokenKind::Long => t.text == "max-count",
@@ -2099,6 +2170,7 @@ fn has_limit_flag(tokens: &[Token<'_>]) -> bool {
     })
 }
 
+#[cfg(not(rtk_library))]
 fn parse_limit_from_tokens(tokens: &[Token<'_>]) -> Option<usize> {
     for token in tokens {
         let value = match token.kind {
@@ -2201,6 +2273,7 @@ pub(crate) fn format_status_output(porcelain: &str) -> String {
     format_status_inner(porcelain, None)
 }
 
+#[cfg(not(rtk_library))]
 pub(crate) fn format_status_output_detached(porcelain: &str, detached_ref: &str) -> String {
     format_status_inner(porcelain, Some(detached_ref))
 }
@@ -2239,6 +2312,7 @@ fn format_status_inner(porcelain: &str, detached: Option<&str>) -> String {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(not(rtk_library))]
 enum GitStatusState {
     Rebase,
     MergeConflicts,
@@ -2250,6 +2324,7 @@ enum GitStatusState {
     SparseCheckout,
 }
 
+#[cfg(not(rtk_library))]
 impl GitStatusState {
     fn summary(self) -> &'static str {
         match self {
@@ -2265,6 +2340,7 @@ impl GitStatusState {
     }
 }
 
+#[cfg(not(rtk_library))]
 const REBASE_INDICATORS: &[&str] = &[
     "rebase in progress",
     "You are currently rebasing",
@@ -2275,6 +2351,7 @@ const REBASE_INDICATORS: &[&str] = &[
     "No commands remaining",
 ];
 
+#[cfg(not(rtk_library))]
 fn detect_status_state(line: &str) -> Option<GitStatusState> {
     if line.contains("All conflicts fixed but you are still merging") {
         Some(GitStatusState::MergeReadyToCommit)
@@ -2300,6 +2377,7 @@ fn detect_status_state(line: &str) -> Option<GitStatusState> {
 /// `git status --porcelain -b` (compact mode) omits the state header for rebase/merge/
 /// cherry-pick/etc, so an in-progress rebase can look like a clean status. Extracts a compact
 /// summary of that state from plain `git status` output instead. `None` if none is in progress.
+#[cfg(not(rtk_library))]
 fn extract_state_header(raw: &str) -> Option<String> {
     // Headers of the file-change blocks — everything relevant to state appears
     // above these in git's output, so they double as a terminator.
@@ -2331,6 +2409,7 @@ fn extract_state_header(raw: &str) -> Option<String> {
 /// Porcelain `-b` collapses a detached HEAD to the opaque `## HEAD (no branch)`, which can be
 /// misread as a branch literally named `HEAD`. Extracts the explicit "HEAD detached at/from
 /// <ref>" line from plain `git status` output instead. `None` if HEAD is on a branch.
+#[cfg(not(rtk_library))]
 fn extract_detached_head(raw: &str) -> Option<String> {
     raw.lines()
         .map(str::trim)
@@ -2339,6 +2418,7 @@ fn extract_detached_head(raw: &str) -> Option<String> {
 }
 
 /// Minimal filtering for git status with user-provided args
+#[cfg(not(rtk_library))]
 fn filter_status_with_args(output: &str) -> String {
     let mut result = Vec::new();
 
@@ -2375,6 +2455,7 @@ fn filter_status_with_args(output: &str) -> String {
     }
 }
 
+#[cfg(not(rtk_library))]
 fn run_status(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32> {
     let timer = tracking::TimedExecution::start();
 
@@ -2482,6 +2563,7 @@ fn run_status(args: &[String], verbose: u8, global_args: &[String]) -> Result<i3
     Ok(0)
 }
 
+#[cfg(not(rtk_library))]
 fn run_add(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32> {
     let timer = tracking::TimedExecution::start();
 
@@ -2555,6 +2637,7 @@ fn run_add(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32> 
     Ok(0)
 }
 
+#[cfg(not(rtk_library))]
 fn build_commit_command(args: &[String], global_args: &[String]) -> Command {
     let mut cmd = git_cmd(global_args);
     cmd.arg("commit");
@@ -2567,6 +2650,7 @@ fn build_commit_command(args: &[String], global_args: &[String]) -> Command {
 /// Parse the first line of `git commit` success output and return a compact token.
 /// Handles: `[main abc1234def] message`, `[main (root-commit) abc1234def] msg`,
 /// localized variants, and multibyte branch names.
+#[cfg(not(rtk_library))]
 fn parse_commit_output(line: &str) -> String {
     // Locate the brackets rather than assume the line starts with '[': git prints hook output
     // first, and slicing from byte 1 would panic on a multi-byte leading character.
@@ -2587,6 +2671,7 @@ fn parse_commit_output(line: &str) -> String {
     }
 }
 
+#[cfg(not(rtk_library))]
 fn run_commit(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32> {
     let timer = tracking::TimedExecution::start();
 
@@ -2627,12 +2712,14 @@ fn run_commit(args: &[String], verbose: u8, global_args: &[String]) -> Result<i3
 
 /// Outcome of a `git commit`: a non-success status propagates the exit code
 /// rather than being reported as "ok" (#2494).
+#[cfg(not(rtk_library))]
 enum CommitOutcome {
     Ok(String),
     Failed(i32),
 }
 
 /// Classify a `git commit` result.
+#[cfg(not(rtk_library))]
 fn classify_commit_outcome(success: bool, stdout: &str, exit_code: i32) -> CommitOutcome {
     if success {
         // Extract commit hash from output
@@ -2647,6 +2734,7 @@ fn classify_commit_outcome(success: bool, stdout: &str, exit_code: i32) -> Commi
     }
 }
 
+#[cfg(not(rtk_library))]
 fn run_checkout(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32> {
     if verbose > 0 {
         eprintln!("git checkout");
@@ -2672,6 +2760,7 @@ fn run_checkout(args: &[String], verbose: u8, global_args: &[String]) -> Result<
     )
 }
 
+#[cfg(not(rtk_library))]
 fn format_checkout_output(args: &[String], raw: &str, exit_code: i32) -> String {
     if exit_code == 0 {
         format_checkout_success(args, raw)
@@ -2680,6 +2769,7 @@ fn format_checkout_output(args: &[String], raw: &str, exit_code: i32) -> String 
     }
 }
 
+#[cfg(not(rtk_library))]
 fn format_checkout_success(args: &[String], raw: &str) -> String {
     let tokens = arg_tokenizer::tokenize_grammar(args, &checkout_takes_value, Dialect::Posix);
 
@@ -2735,6 +2825,7 @@ fn format_checkout_success(args: &[String], raw: &str) -> String {
 /// answers "requires a value"). `-t`/`--track`/`--detach` and any other `-`-prefixed token are
 /// booleans. Shared by every `checkout_*_arg` helper below via one
 /// [`arg_tokenizer::tokenize`] call instead of each hand-rolling its own scan over `args`.
+#[cfg(not(rtk_library))]
 fn checkout_takes_value(kind: TokenKind, name: &str) -> Option<ValueSpec> {
     match kind {
         TokenKind::Long => {
@@ -2745,6 +2836,7 @@ fn checkout_takes_value(kind: TokenKind, name: &str) -> Option<ValueSpec> {
     }
 }
 
+#[cfg(not(rtk_library))]
 fn checkout_restored_count(tokens: &[Token<'_>]) -> Option<usize> {
     let separator = arg_tokenizer::dashdash_index(tokens)?;
     let count = tokens[separator + 1..]
@@ -2754,6 +2846,7 @@ fn checkout_restored_count(tokens: &[Token<'_>]) -> Option<usize> {
     (count > 0).then_some(count)
 }
 
+#[cfg(not(rtk_library))]
 fn checkout_new_branch_arg<'a>(tokens: &[Token<'a>]) -> Option<&'a str> {
     tokens.iter().find_map(|t| match t.kind {
         TokenKind::Long if t.text == "orphan" => t.value(tokens),
@@ -2762,6 +2855,7 @@ fn checkout_new_branch_arg<'a>(tokens: &[Token<'a>]) -> Option<&'a str> {
     })
 }
 
+#[cfg(not(rtk_library))]
 fn checkout_reset_branch_arg<'a>(tokens: &[Token<'a>]) -> Option<&'a str> {
     tokens
         .iter()
@@ -2769,6 +2863,7 @@ fn checkout_reset_branch_arg<'a>(tokens: &[Token<'a>]) -> Option<&'a str> {
         .and_then(|t| t.value(tokens))
 }
 
+#[cfg(not(rtk_library))]
 fn checkout_branch_arg<'a>(tokens: &[Token<'a>]) -> Option<&'a str> {
     if arg_tokenizer::has_dashdash(tokens) {
         return None;
@@ -2780,16 +2875,19 @@ fn checkout_branch_arg<'a>(tokens: &[Token<'a>]) -> Option<&'a str> {
         .map(|t| t.text)
 }
 
+#[cfg(not(rtk_library))]
 fn quoted_suffix<'a>(line: &'a str, prefix: &str) -> Option<&'a str> {
     line.strip_prefix(prefix)
         .and_then(|rest| rest.strip_prefix('\''))
         .and_then(|rest| rest.strip_suffix('\''))
 }
 
+#[cfg(not(rtk_library))]
 fn pluralize<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
     if count == 1 { singular } else { plural }
 }
 
+#[cfg(not(rtk_library))]
 fn filter_checkout_failure(raw: &str) -> String {
     let mut important = Vec::new();
     let mut in_file_list = false;
@@ -2834,6 +2932,7 @@ fn filter_checkout_failure(raw: &str) -> String {
 }
 
 // Git push progress prefixes (stderr) — dropped from the stream.
+#[cfg(not(rtk_library))]
 const GIT_PUSH_NOISE_PREFIXES: &[&str] = &[
     "Enumerating objects:",
     "Counting objects:",
@@ -2844,11 +2943,13 @@ const GIT_PUSH_NOISE_PREFIXES: &[&str] = &[
 ];
 
 #[derive(Default)]
+#[cfg(not(rtk_library))]
 struct GitPushLineHandler {
     up_to_date: bool,
     pushed_ref: Option<String>,
 }
 
+#[cfg(not(rtk_library))]
 impl LineHandler for GitPushLineHandler {
     fn should_skip(&mut self, line: &str) -> bool {
         if line.is_empty() {
@@ -2889,6 +2990,7 @@ impl LineHandler for GitPushLineHandler {
     }
 }
 
+#[cfg(not(rtk_library))]
 fn run_push(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32> {
     let timer = tracking::TimedExecution::start();
 
@@ -2921,6 +3023,7 @@ fn run_push(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32>
     Ok(result.exit_code)
 }
 
+#[cfg(not(rtk_library))]
 fn run_pull(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32> {
     let timer = tracking::TimedExecution::start();
 
@@ -3006,6 +3109,7 @@ fn run_pull(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32>
     Ok(0)
 }
 
+#[cfg(not(rtk_library))]
 fn branch_takes_value(kind: TokenKind, name: &str) -> Option<ValueSpec> {
     // -c/-C/-m/-M/-d/-D are followed by positional branch names, not a "flag value" in the
     // attached/separate-value sense, so they're excluded here. -u IS a genuine value-taking flag
@@ -3030,6 +3134,7 @@ fn branch_takes_value(kind: TokenKind, name: &str) -> Option<ValueSpec> {
     }
 }
 
+#[cfg(not(rtk_library))]
 fn run_branch(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32> {
     let timer = tracking::TimedExecution::start();
 
@@ -3182,6 +3287,7 @@ fn run_branch(args: &[String], verbose: u8, global_args: &[String]) -> Result<i3
     Ok(0)
 }
 
+#[cfg(not(rtk_library))]
 fn filter_branch_output(output: &str) -> String {
     let mut current = String::new();
     let mut local: Vec<String> = Vec::new();
@@ -3243,6 +3349,7 @@ fn filter_branch_output(output: &str) -> String {
     result.join("\n")
 }
 
+#[cfg(not(rtk_library))]
 fn run_fetch(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32> {
     let timer = tracking::TimedExecution::start();
 
@@ -3289,6 +3396,7 @@ fn run_fetch(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32
 /// Format status message for stash operations.
 /// - For create operations (push/save): checks for "No local changes"
 /// - For other operations: uses "ok stash <subcommand>" format
+#[cfg(not(rtk_library))]
 fn format_stash_message(subcommand: Option<&str>, result: &CaptureResult) -> String {
     match subcommand {
         None | Some("push") | Some("save") => {
@@ -3312,6 +3420,7 @@ fn format_stash_message(subcommand: Option<&str>, result: &CaptureResult) -> Str
 /// placeholder: git parses `-p`/`-u` itself before handing the rest to the revision machinery,
 /// so no flag it sees here consumes a following token, and treating one as if it did swallowed
 /// the `-p` after it (confirmed against git 2.53 with `git stash show --author -p`).
+#[cfg(not(rtk_library))]
 fn stash_show_wants_patch(args: &[String]) -> bool {
     let tokens = arg_tokenizer::tokenize(args);
     tokens.iter().any(|t| match t.kind {
@@ -3321,6 +3430,7 @@ fn stash_show_wants_patch(args: &[String]) -> bool {
     })
 }
 
+#[cfg(not(rtk_library))]
 fn run_stash(
     subcommand: Option<&str>,
     args: &[String],
@@ -3483,6 +3593,7 @@ fn run_stash(
     Ok(0)
 }
 
+#[cfg(not(rtk_library))]
 fn filter_stash_list(output: &str) -> String {
     // Format: "stash@{0}: WIP on main: abc1234 commit message"
     let mut result = Vec::new();
@@ -3504,6 +3615,7 @@ fn filter_stash_list(output: &str) -> String {
     result.join("\n")
 }
 
+#[cfg(not(rtk_library))]
 fn compact_stash_stat(raw: &str) -> String {
     let (files, summary) = parse_stash_stat(raw);
     if files.is_empty() {
@@ -3525,6 +3637,7 @@ fn compact_stash_stat(raw: &str) -> String {
     out
 }
 
+#[cfg(not(rtk_library))]
 fn compress_stat_summary(summary: &str) -> String {
     summary
         .replace("insertions(+)", "+")
@@ -3536,6 +3649,7 @@ fn compress_stat_summary(summary: &str) -> String {
         .replace(",", "")
 }
 
+#[cfg(not(rtk_library))]
 fn parse_stash_stat(stat: &str) -> (Vec<String>, String) {
     let stat = strip_ansi(stat);
     let mut files = Vec::new();
@@ -3555,6 +3669,7 @@ fn parse_stash_stat(stat: &str) -> (Vec<String>, String) {
     (files, summary)
 }
 
+#[cfg(not(rtk_library))]
 fn diffstat_row(line: &str) -> Option<String> {
     let bar = line.rfind('|')?;
     let path = line[..bar].trim();
@@ -3579,6 +3694,7 @@ fn diffstat_row(line: &str) -> Option<String> {
 /// True when a `git worktree` write action was asked to report what it did: `prune --dry-run`
 /// names every worktree it would remove and that list is the whole point of the command, while
 /// `git worktree add`'s progress lines are exactly what RTK's "ok" replaces.
+#[cfg(not(rtk_library))]
 fn worktree_asked_for_report(tokens: &[Token<'_>]) -> bool {
     arg_tokenizer::before_dashdash(tokens)
         .iter()
@@ -3589,6 +3705,7 @@ fn worktree_asked_for_report(tokens: &[Token<'_>]) -> bool {
         })
 }
 
+#[cfg(not(rtk_library))]
 fn run_worktree(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32> {
     let timer = tracking::TimedExecution::start();
 
@@ -3712,6 +3829,7 @@ fn run_worktree(args: &[String], verbose: u8, global_args: &[String]) -> Result<
     Ok(0)
 }
 
+#[cfg(not(rtk_library))]
 fn filter_worktree_list(output: &str) -> String {
     let home = dirs::home_dir()
         .map(|h| h.to_string_lossy().to_string())
@@ -3740,6 +3858,7 @@ fn filter_worktree_list(output: &str) -> String {
 }
 
 /// Runs an unsupported git subcommand by passing it through directly
+#[cfg(not(rtk_library))]
 pub fn run_passthrough(args: &[OsString], global_args: &[String], verbose: u8) -> Result<i32> {
     let timer = tracking::TimedExecution::start();
 
@@ -3764,6 +3883,7 @@ pub fn run_passthrough(args: &[OsString], global_args: &[String], verbose: u8) -
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

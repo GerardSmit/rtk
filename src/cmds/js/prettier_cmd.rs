@@ -1,10 +1,14 @@
 //! Filters Prettier output to show only files that need formatting.
 
+#[cfg(not(rtk_library))]
 use crate::core::runner::{self, RunOptions};
 use crate::core::truncate::CAP_WARNINGS;
+#[cfg(not(rtk_library))]
 use crate::core::utils::package_manager_exec;
+#[cfg(not(rtk_library))]
 use anyhow::Result;
 
+#[cfg(not(rtk_library))]
 pub fn run(args: &[String], verbose: u8) -> Result<i32> {
     let mut cmd = package_manager_exec("prettier");
 
@@ -125,6 +129,7 @@ pub fn filter_prettier_output(output: &str) -> String {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

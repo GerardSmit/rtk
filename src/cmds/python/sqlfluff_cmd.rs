@@ -4,10 +4,16 @@
 //! reads the result back; both `rtk sqlfluff ...` and `rtk lint sqlfluff ...`
 //! go through it so the two entry points cannot drift apart.
 
+#[cfg(not(rtk_library))]
 use crate::core::config;
+#[cfg(not(rtk_library))]
 use crate::core::runner;
 use crate::core::truncate::CAP_WARNINGS;
+#[cfg(rtk_library)]
+use crate::core::utils::truncate;
+#[cfg(not(rtk_library))]
 use crate::core::utils::{resolved_command, truncate};
+#[cfg(not(rtk_library))]
 use anyhow::Result;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -54,6 +60,7 @@ struct SqlfluffFile {
 /// Both entry points - `rtk sqlfluff ...` and `rtk lint sqlfluff ...` - build
 /// one of these and hand it the raw stdout afterwards, so the "is this lint
 /// JSON?" decision is stated once instead of once per call site.
+#[cfg(not(rtk_library))]
 pub struct Invocation {
     /// Full sqlfluff argv (subcommand included), with `--format json` appended
     /// when rtk owns the output format.
@@ -63,6 +70,7 @@ pub struct Invocation {
 }
 
 /// Build the sqlfluff invocation for a user-supplied argv (tool name excluded).
+#[cfg(not(rtk_library))]
 pub fn plan(args: &[String]) -> Invocation {
     // Route to the lint filter only for explicit lint invocations (or a bare
     // call, which we make explicit). sqlfluff's other subcommands - and any
@@ -110,6 +118,7 @@ pub fn plan(args: &[String]) -> Invocation {
     }
 }
 
+#[cfg(not(rtk_library))]
 impl Invocation {
     /// Render sqlfluff's stdout for display.
     ///
@@ -125,6 +134,7 @@ impl Invocation {
     }
 }
 
+#[cfg(not(rtk_library))]
 pub fn run(args: &[String], verbose: u8) -> Result<i32> {
     let plan = plan(args);
 
@@ -415,6 +425,7 @@ fn compact_path(path: &str) -> String {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

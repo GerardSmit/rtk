@@ -1,12 +1,18 @@
 //! Filters mypy type-checking output, grouping errors by file.
 
+#[cfg(not(rtk_library))]
 use crate::core::runner;
+#[cfg(rtk_library)]
+use crate::core::utils::truncate;
+#[cfg(not(rtk_library))]
 use crate::core::utils::{resolved_command, strip_ansi, tool_exists, truncate};
+#[cfg(not(rtk_library))]
 use anyhow::Result;
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+#[cfg(not(rtk_library))]
 pub fn run(args: &[String], verbose: u8) -> Result<i32> {
     let mut cmd = if tool_exists("mypy") {
         resolved_command("mypy")
@@ -222,6 +228,7 @@ pub fn filter_mypy_output(output: &str) -> String {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

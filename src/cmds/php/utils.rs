@@ -1,6 +1,9 @@
+#[cfg(not(rtk_library))]
 use crate::core::utils::{composer_tool_paths, resolve_binary, resolved_command};
 use regex::Regex;
+#[cfg(not(rtk_library))]
 use std::path::Path;
+#[cfg(not(rtk_library))]
 use std::process::Command;
 use std::sync::LazyLock;
 
@@ -8,6 +11,7 @@ static ANSI_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\x1b\[[0-9;]*[A-
 static CONTROL_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]").unwrap());
 
+#[cfg(not(rtk_library))]
 pub fn php_tool_command(tool: &str) -> Command {
     for local_tool in composer_tool_paths(tool) {
         let local_tool_name = local_tool.to_string_lossy().into_owned();
@@ -22,6 +26,7 @@ pub fn php_tool_command(tool: &str) -> Command {
     resolved_command(tool)
 }
 
+#[cfg(not(rtk_library))]
 fn composer_tool_exists(tool: &str) -> bool {
     composer_tool_paths(tool).into_iter().any(|local_tool| {
         let local_tool_name = local_tool.to_string_lossy().into_owned();
@@ -35,12 +40,14 @@ pub fn strip_ansi_and_controls(input: &str) -> String {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(not(rtk_library))]
 pub enum PhpTestRunner {
     Pest,
     Phpunit,
     Unknown,
 }
 
+#[cfg(not(rtk_library))]
 pub fn detect_php_test_runner() -> PhpTestRunner {
     // Pest's canonical marker is the `vendor/bin/pest` binary (composer dep).
     // There is no root `pest.php` file — Pest's bootstrap lives at `tests/Pest.php`

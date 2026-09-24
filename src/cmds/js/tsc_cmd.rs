@@ -1,22 +1,36 @@
 //! Filters TypeScript compiler errors, grouping them by file and error code.
 
+#[cfg(not(rtk_library))]
 use crate::core::runner;
+#[cfg(not(rtk_library))]
 use crate::core::stream::{BlockHandler, BlockStreamFilter};
+#[cfg(not(rtk_library))]
 use crate::core::truncate::{CAP_WARNINGS, reduced};
+#[cfg(rtk_library)]
+use crate::core::utils::strip_ansi;
+#[cfg(rtk_library)]
+use crate::core::utils::truncate;
+#[cfg(not(rtk_library))]
 use crate::core::utils::{MissingTool, exec_runner, strip_ansi, tool_exec, tool_exists, truncate};
+#[cfg(not(rtk_library))]
 use anyhow::Result;
 use regex::Regex;
 use std::borrow::Cow;
+#[cfg(rtk_library)]
+use std::collections::HashMap;
+#[cfg(not(rtk_library))]
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::LazyLock;
 
 /// Cap on the non-empty lines kept when RTK cannot parse failure output. With
 /// tee disabled (`RTK_TEE=0`, `config.tee.enabled = false`) these lines are the
 /// only surviving copy of the failure.
+#[cfg(not(rtk_library))]
 const MAX_UNPARSED_LINES: usize = CAP_WARNINGS;
 /// tsc and npx print the cause first (`Unknown compiler option`, `This is not
 /// the tsc command`) and boilerplate after it, so spending the whole cap on a
 /// tail would drop the cause.
+#[cfg(not(rtk_library))]
 const MAX_UNPARSED_HEAD_LINES: usize = reduced(MAX_UNPARSED_LINES, 5);
 
 static TSC_ERROR: LazyLock<Regex> = LazyLock::new(|| {
@@ -63,6 +77,7 @@ fn parse_diagnostic(line: &str) -> Option<Diagnostic<'_>> {
     })
 }
 
+#[cfg(not(rtk_library))]
 fn push_dump_line(summary: &mut String, line: &str) {
     summary.push_str(&truncate(line, 120));
     summary.push('\n');
@@ -78,6 +93,7 @@ fn clean_line(line: &str) -> Cow<'_, str> {
 
 /// `runner` is the package runner the user named (`bunx tsc`, `npx tsc`), or
 /// None for a bare `rtk tsc` where nothing was specified and detection applies.
+#[cfg(not(rtk_library))]
 pub fn run(runner: Option<&str>, args: &[String], verbose: u8) -> Result<i32> {
     let tsc_exists = tool_exists("tsc");
 
@@ -107,12 +123,14 @@ pub fn run(runner: Option<&str>, args: &[String], verbose: u8) -> Result<i32> {
     )
 }
 
+#[cfg(not(rtk_library))]
 struct TscHandler {
     error_count: usize,
     files: HashSet<String>,
     code_counts: HashMap<String, usize>,
 }
 
+#[cfg(not(rtk_library))]
 impl TscHandler {
     fn new() -> Self {
         Self {
@@ -123,6 +141,7 @@ impl TscHandler {
     }
 }
 
+#[cfg(not(rtk_library))]
 impl BlockHandler for TscHandler {
     /// `--pretty` wraps every field in ANSI escapes; strip them once so
     /// matching and the emitted block both see plain text.
@@ -370,6 +389,7 @@ pub(crate) fn filter_tsc_output(output: &str) -> String {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

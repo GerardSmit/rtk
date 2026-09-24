@@ -1,13 +1,19 @@
 //! Deduplicates repeated log lines and shows counts instead.
 
+#[cfg(not(rtk_library))]
 use crate::core::guard::never_worse;
+#[cfg(not(rtk_library))]
 use crate::core::tracking;
 use crate::core::truncate::{CAP_WARNINGS, reduced};
+#[cfg(not(rtk_library))]
 use anyhow::Result;
 use regex::Regex;
 use std::collections::HashMap;
+#[cfg(not(rtk_library))]
 use std::fs;
+#[cfg(not(rtk_library))]
 use std::io::{self, BufRead};
+#[cfg(not(rtk_library))]
 use std::path::Path;
 use std::sync::LazyLock;
 
@@ -23,6 +29,7 @@ static NUM_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b\d{4,}\b").unwr
 static PATH_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"/[\w./\-]+").unwrap());
 
 /// Filter and deduplicate log output
+#[cfg(not(rtk_library))]
 pub fn run_file(file: &Path, verbose: u8) -> Result<()> {
     let timer = tracking::TimedExecution::start();
 
@@ -44,6 +51,7 @@ pub fn run_file(file: &Path, verbose: u8) -> Result<()> {
 }
 
 /// Filter logs from stdin
+#[cfg(not(rtk_library))]
 pub fn run_stdin(_verbose: u8) -> Result<()> {
     let timer = tracking::TimedExecution::start();
 
@@ -236,6 +244,7 @@ fn normalize_log_line(
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

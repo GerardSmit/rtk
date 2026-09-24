@@ -1,7 +1,11 @@
+#[cfg(not(rtk_library))]
 use anyhow::Result;
+#[cfg(not(rtk_library))]
 use std::io::Read;
 
+#[cfg(not(rtk_library))]
 use crate::core::guard::never_worse;
+#[cfg(not(rtk_library))]
 use crate::core::stream::RAW_CAP;
 use crate::core::truncate::{CAP_LIST, CAP_WARNINGS};
 
@@ -11,6 +15,8 @@ const MAX_PIPE_DIRS: usize = CAP_LIST;
 
 pub fn resolve_filter(name: &str) -> Option<fn(&str) -> String> {
     match name {
+        "captured" => Some(crate::cmds::system::captured_output::filter),
+        "javascript" | "node-test" | "next-build" => Some(crate::cmds::js::captured_output::filter),
         "cargo-test" | "cargo" => Some(crate::cmds::rust::cargo_cmd::filter_cargo_test),
         "pytest" => Some(crate::cmds::python::pytest_cmd::filter_pytest_output),
         "go-test" => Some(go_test_wrapper),
@@ -171,6 +177,9 @@ fn find_wrapper(input: &str) -> String {
 }
 
 pub fn auto_detect_filter(input: &str) -> fn(&str) -> String {
+    if crate::cmds::system::captured_output::recognizes(input) {
+        return crate::cmds::system::captured_output::filter;
+    }
     let end = input.len().min(1024);
     // Avoid panic: byte 1024 may fall inside a multi-byte UTF-8 char
     let end = input.floor_char_boundary(end);
@@ -244,15 +253,17 @@ fn identity_filter(input: &str) -> String {
     input.to_string()
 }
 
-fn apply_filter(filter_fn: fn(&str) -> String, input: &str) -> String {
+pub(crate) fn apply_filter(filter_fn: fn(&str) -> String, input: &str) -> String {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| filter_fn(input))).unwrap_or_else(
         |_| {
+            #[cfg(not(rtk_library))]
             eprintln!("[rtk] warning: filter panicked — passing through raw output");
             input.to_string()
         },
     )
 }
 
+#[cfg(not(rtk_library))]
 pub fn run(filter_name: Option<&str>, passthrough: bool) -> Result<()> {
     if passthrough {
         std::io::copy(&mut std::io::stdin(), &mut std::io::stdout())
@@ -272,7 +283,7 @@ pub fn run(filter_name: Option<&str>, passthrough: bool) -> Result<()> {
     let filter_fn = match filter_name {
         Some(name) => resolve_filter(name).ok_or_else(|| {
             anyhow::anyhow!(
-                "Unknown filter '{}'. Available: cargo-test, pytest, go-test, go-build, \
+                "Unknown filter '{}'. Available: captured, javascript, node-test, next-build, cargo-test, pytest, go-test, go-build, \
                  ctest, tsc, vitest, grep, rg, find, fd, git-log, git-diff, git-status, \
                  log, mypy, ruff-check, ruff-format, sqlfluff-lint, prettier, phpunit, pest, \
                  paratest, php-test, ecs, phpstan, pint",

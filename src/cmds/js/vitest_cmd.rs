@@ -1,14 +1,34 @@
 //! Filters Vitest test output to show only failures.
 
+#[cfg(not(rtk_library))]
 use anyhow::{Context, Result};
 use regex::Regex;
 use serde::Deserialize;
 use std::sync::LazyLock;
 
+#[cfg(not(rtk_library))]
 use crate::Commands;
+#[cfg(not(rtk_library))]
 use crate::core::stream::exec_capture;
+#[cfg(not(rtk_library))]
 use crate::core::tracking;
+#[cfg(rtk_library)]
+use crate::core::utils::strip_ansi;
+#[cfg(not(rtk_library))]
 use crate::core::utils::{package_manager_exec, strip_ansi};
+#[cfg(rtk_library)]
+use crate::parser::OutputParser;
+#[cfg(rtk_library)]
+use crate::parser::ParseResult;
+#[cfg(rtk_library)]
+use crate::parser::TestFailure;
+#[cfg(rtk_library)]
+use crate::parser::TestResult;
+#[cfg(rtk_library)]
+use crate::parser::extract_json_object;
+#[cfg(rtk_library)]
+use crate::parser::truncate_passthrough;
+#[cfg(not(rtk_library))]
 use crate::parser::{
     FormatMode, OutputParser, ParseResult, TestFailure, TestResult, TokenFormatter,
     emit_degradation_warning, emit_passthrough_warning, extract_json_object, truncate_output,
@@ -199,6 +219,7 @@ fn extract_failures_regex(output: &str) -> Vec<TestFailure> {
     failures
 }
 
+#[cfg(not(rtk_library))]
 pub fn run_test(command: &Commands, args: &[String], verbose: u8) -> Result<i32> {
     let timer = tracking::TimedExecution::start();
     let mut passthrough_requested = false;
@@ -266,16 +287,19 @@ pub fn run_test(command: &Commands, args: &[String], verbose: u8) -> Result<i32>
     Ok(0)
 }
 
+#[cfg(not(rtk_library))]
 struct EffectiveVitestArgs {
     args: Vec<String>,
     passthrough: bool,
 }
 
+#[cfg(not(rtk_library))]
 struct FormattedTestOutput {
     text: String,
     truncated: bool,
 }
 
+#[cfg(not(rtk_library))]
 impl FormattedTestOutput {
     fn new(text: String) -> Self {
         Self {
@@ -292,6 +316,7 @@ impl FormattedTestOutput {
     }
 }
 
+#[cfg(not(rtk_library))]
 fn build_vitest_effective_args(args: &[String]) -> EffectiveVitestArgs {
     let passthrough = has_explicit_vitest_reporter(args);
     let mut effective = vec!["run".to_string()];
@@ -313,15 +338,18 @@ fn build_vitest_effective_args(args: &[String]) -> EffectiveVitestArgs {
     }
 }
 
+#[cfg(not(rtk_library))]
 fn has_explicit_vitest_reporter(args: &[String]) -> bool {
     args.iter()
         .any(|arg| arg == "--reporter" || arg.starts_with("--reporter="))
 }
 
+#[cfg(not(rtk_library))]
 fn should_skip_vitest_arg(arg: &str) -> bool {
     arg == "run" || arg.starts_with("--json") || arg.starts_with("--watch")
 }
 
+#[cfg(not(rtk_library))]
 fn format_test_output(
     framework: &str,
     stdout: &str,
@@ -355,11 +383,13 @@ fn format_test_output(
     }
 }
 
+#[cfg(not(rtk_library))]
 fn format_passthrough_output(raw: &str) -> FormattedTestOutput {
     let max_chars = crate::core::config::limits().passthrough_max_chars;
     format_passthrough_output_with_limit(raw, max_chars)
 }
 
+#[cfg(not(rtk_library))]
 fn format_passthrough_output_with_limit(raw: &str, max_chars: usize) -> FormattedTestOutput {
     let text = truncate_output(raw, max_chars);
 
@@ -370,6 +400,7 @@ fn format_passthrough_output_with_limit(raw: &str, max_chars: usize) -> Formatte
     }
 }
 
+#[cfg(not(rtk_library))]
 fn render_test_output(
     filtered: &FormattedTestOutput,
     raw: &str,
@@ -386,6 +417,7 @@ fn render_test_output(
     )
 }
 
+#[cfg(not(rtk_library))]
 fn render_test_output_with_hints<F, T>(
     filtered: &FormattedTestOutput,
     raw: &str,
@@ -411,6 +443,7 @@ where
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

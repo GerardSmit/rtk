@@ -1,14 +1,20 @@
 //! Compact CTest output while preserving failing-test details.
 
+#[cfg(not(rtk_library))]
 use anyhow::Result;
 use regex::Regex;
 use std::cmp::Ordering;
 use std::collections::HashSet;
+#[cfg(not(rtk_library))]
 use std::ffi::OsString;
 use std::sync::LazyLock;
 
+#[cfg(not(rtk_library))]
 use crate::core::runner::{self, RunOptions};
 use crate::core::truncate::{self, CAP_LIST, CAP_WARNINGS};
+#[cfg(rtk_library)]
+use crate::core::utils::strip_ansi;
+#[cfg(not(rtk_library))]
 use crate::core::utils::{resolved_command, strip_ansi};
 
 const MAX_SLOWEST: usize = 3;
@@ -69,6 +75,7 @@ struct CtestSummary {
     total: usize,
 }
 
+#[cfg(not(rtk_library))]
 pub fn run(args: &[String], verbose: u8) -> Result<i32> {
     if should_passthrough(args) {
         let os_args: Vec<OsString> = args.iter().map(OsString::from).collect();
@@ -93,6 +100,7 @@ pub fn run(args: &[String], verbose: u8) -> Result<i32> {
     )
 }
 
+#[cfg(not(rtk_library))]
 fn should_passthrough(args: &[String]) -> bool {
     args.iter().any(|arg| {
         matches!(
@@ -129,6 +137,7 @@ fn should_passthrough(args: &[String]) -> bool {
 /// it stays filtered. Every other action prints something else entirely
 /// (`-T Coverage` opens with `Performing coverage`), and a test model with no
 /// action to pair it with is left alone rather than guessed at.
+#[cfg(not(rtk_library))]
 fn dashboard_action_changes_output(args: &[String]) -> bool {
     let mut actions = Vec::new();
     let mut has_model = false;
@@ -820,6 +829,7 @@ fn trim_blank_edges(lines: &mut Vec<String>) {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

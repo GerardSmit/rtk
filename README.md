@@ -73,6 +73,11 @@ The token counts RTK reports are estimated as `bytes / 4` — RTK ships no token
 
 > Full explanation: [How RTK Savings Work](docs/guide/resources/savings-explained.md)
 
+## Rust library (this fork)
+
+Use [`rtk-filter`](crates/rtk-filter/README.md) to filter captured output directly
+from Rust, without a subprocess, SQLite, tracking, or CLI configuration.
+
 ## Installation
 
 ### Homebrew (recommended)

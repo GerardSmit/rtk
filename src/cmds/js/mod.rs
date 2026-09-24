@@ -1,4 +1,5 @@
 pub mod bun_cmd;
+pub mod captured_output;
 pub mod deno_cmd;
 pub mod lint_cmd;
 pub mod next_cmd;

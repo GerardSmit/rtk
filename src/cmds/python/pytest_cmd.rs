@@ -1,9 +1,15 @@
 //! Filters pytest output to show only failures and the summary line.
 
+#[cfg(not(rtk_library))]
 use crate::core::config;
+#[cfg(not(rtk_library))]
 use crate::core::runner;
 use crate::core::truncate::CAP_WARNINGS;
+#[cfg(rtk_library)]
+use crate::core::utils::truncate;
+#[cfg(not(rtk_library))]
 use crate::core::utils::{resolved_command, strip_ansi, tool_exists, truncate};
+#[cfg(not(rtk_library))]
 use anyhow::Result;
 
 const MAX_XFAIL: usize = CAP_WARNINGS;
@@ -17,6 +23,7 @@ enum ParseState {
     Summary,
 }
 
+#[cfg(not(rtk_library))]
 pub fn run(args: &[String], verbose: u8) -> Result<i32> {
     let mut cmd = if tool_exists("pytest") {
         resolved_command("pytest")
@@ -72,6 +79,7 @@ pub fn run(args: &[String], verbose: u8) -> Result<i32> {
 }
 
 const PYTEST_NO_TESTS: &str = "Pytest: No tests collected";
+#[cfg(not(rtk_library))]
 const PYTEST_EXIT_NO_TESTS: i32 = 5;
 
 pub(crate) fn filter_pytest_output(output: &str) -> String {
@@ -333,6 +341,7 @@ fn parse_summary_line(summary: &str) -> PytestCounts {
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     use super::*;
 

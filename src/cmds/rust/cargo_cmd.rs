@@ -1,18 +1,38 @@
 //! Filters cargo output — build errors, test results, clippy warnings.
 
+#[cfg(not(rtk_library))]
 use crate::core::args_utils;
+#[cfg(not(rtk_library))]
 use crate::core::runner;
+#[cfg(rtk_library)]
+use crate::core::stream::BlockHandler;
+#[cfg(not(rtk_library))]
 use crate::core::stream::{BlockHandler, BlockStreamFilter, StreamFilter};
+#[cfg(rtk_library)]
+use crate::core::truncate::CAP_ERRORS;
+#[cfg(rtk_library)]
+use crate::core::truncate::CAP_WARNINGS;
+#[cfg(not(rtk_library))]
 use crate::core::truncate::{CAP_ERRORS, CAP_LIST, CAP_WARNINGS};
+#[cfg(rtk_library)]
+use crate::core::utils::join_with_overflow;
+#[cfg(rtk_library)]
+use crate::core::utils::truncate;
+#[cfg(not(rtk_library))]
 use crate::core::utils::{join_with_overflow, resolved_command, truncate};
+#[cfg(not(rtk_library))]
 use anyhow::Result;
 use serde::Deserialize;
+#[cfg(not(rtk_library))]
 use std::cmp::Ordering;
+#[cfg(not(rtk_library))]
 use std::collections::HashMap;
+#[cfg(not(rtk_library))]
 use std::ffi::OsString;
 use std::sync::LazyLock;
 
 #[derive(Debug, Clone)]
+#[cfg(not(rtk_library))]
 pub enum CargoCommand {
     Build,
     Test,
@@ -22,6 +42,7 @@ pub enum CargoCommand {
     Nextest,
 }
 
+#[cfg(not(rtk_library))]
 pub fn run(cmd: CargoCommand, args: &[String], verbose: u8) -> Result<i32> {
     match cmd {
         CargoCommand::Build => run_build(args, verbose),
@@ -119,6 +140,7 @@ impl BlockHandler for CargoBuildHandler {
     }
 }
 
+#[cfg(not(rtk_library))]
 struct CargoTestHandler {
     in_failure_section: bool,
     in_failure_names: bool,
@@ -126,6 +148,7 @@ struct CargoTestHandler {
     has_compile_errors: bool,
 }
 
+#[cfg(not(rtk_library))]
 impl CargoTestHandler {
     fn new() -> Self {
         Self {
@@ -195,6 +218,7 @@ impl CargoTestHandler {
     }
 }
 
+#[cfg(not(rtk_library))]
 impl BlockHandler for CargoTestHandler {
     fn should_skip(&mut self, line: &str) -> bool {
         let trimmed = line.trim_start();
@@ -262,6 +286,7 @@ impl BlockHandler for CargoTestHandler {
 
 /// Generic cargo command runner with filtering.
 /// Builds the Command with restored `--` separator, then delegates to shared runner.
+#[cfg(not(rtk_library))]
 fn run_cargo_filtered<F>(
     subcommand: &str,
     args: &[String],
@@ -294,6 +319,7 @@ where
 
 /// Same as `run_cargo_filtered` but the filter also receives the child exit code,
 /// so it can tell a genuine failure from a clean run when no diagnostics parse.
+#[cfg(not(rtk_library))]
 fn run_cargo_filtered_with_exit<F>(
     subcommand: &str,
     args: &[String],
@@ -324,6 +350,7 @@ where
     )
 }
 
+#[cfg(not(rtk_library))]
 fn run_cargo_streamed(
     subcommand: &str,
     args: &[String],
@@ -351,6 +378,7 @@ fn run_cargo_streamed(
     )
 }
 
+#[cfg(not(rtk_library))]
 fn has_json_message_format(args: &[String]) -> bool {
     let mut json = false;
     let mut iter = args.iter();
@@ -366,6 +394,7 @@ fn has_json_message_format(args: &[String]) -> bool {
     json
 }
 
+#[cfg(not(rtk_library))]
 fn run_build(args: &[String], verbose: u8) -> Result<i32> {
     if has_json_message_format(args) {
         return run_cargo_filtered_with_exit("build", args, verbose, |o, exit| {
@@ -382,6 +411,7 @@ fn run_build(args: &[String], verbose: u8) -> Result<i32> {
     )
 }
 
+#[cfg(not(rtk_library))]
 fn run_test(args: &[String], verbose: u8) -> Result<i32> {
     // No json branch here on purpose: --message-format=json only reformats the
     // build phase, the test harness output stays human-readable. CargoTestHandler
@@ -395,6 +425,7 @@ fn run_test(args: &[String], verbose: u8) -> Result<i32> {
     )
 }
 
+#[cfg(not(rtk_library))]
 fn run_clippy(args: &[String], verbose: u8) -> Result<i32> {
     if has_json_message_format(args) {
         return run_cargo_filtered_with_exit("clippy", args, verbose, filter_cargo_clippy_json);
@@ -402,6 +433,7 @@ fn run_clippy(args: &[String], verbose: u8) -> Result<i32> {
     run_cargo_filtered("clippy", args, verbose, filter_cargo_clippy)
 }
 
+#[cfg(not(rtk_library))]
 fn run_check(args: &[String], verbose: u8) -> Result<i32> {
     if has_json_message_format(args) {
         return run_cargo_filtered_with_exit("check", args, verbose, |o, exit| {
@@ -418,15 +450,18 @@ fn run_check(args: &[String], verbose: u8) -> Result<i32> {
     )
 }
 
+#[cfg(not(rtk_library))]
 fn run_install(args: &[String], verbose: u8) -> Result<i32> {
     run_cargo_filtered("install", args, verbose, filter_cargo_install)
 }
 
+#[cfg(not(rtk_library))]
 fn run_nextest(args: &[String], verbose: u8) -> Result<i32> {
     run_cargo_filtered("nextest", args, verbose, filter_cargo_nextest)
 }
 
 /// Format crate name + version into a display string
+#[cfg(not(rtk_library))]
 fn format_crate_info(name: &str, version: &str, fallback: &str) -> String {
     if name.is_empty() {
         fallback.to_string()
@@ -438,6 +473,7 @@ fn format_crate_info(name: &str, version: &str, fallback: &str) -> String {
 }
 
 /// Filter cargo install output - strip dep compilation, keep installed/replaced/errors
+#[cfg(not(rtk_library))]
 fn filter_cargo_install(output: &str) -> String {
     let mut errors: Vec<String> = Vec::new();
     let mut error_count = 0;
@@ -615,6 +651,7 @@ fn filter_cargo_install(output: &str) -> String {
 }
 
 /// Push a completed failure block (header + body) into the failures list, then clear the buffers.
+#[cfg(not(rtk_library))]
 fn flush_failure_block(header: &mut String, body: &mut Vec<String>, failures: &mut Vec<String>) {
     if header.is_empty() {
         return;
@@ -630,6 +667,7 @@ fn flush_failure_block(header: &mut String, body: &mut Vec<String>, failures: &m
 }
 
 /// Filter cargo nextest output - show failures + compact summary
+#[cfg(not(rtk_library))]
 fn filter_cargo_nextest(output: &str) -> String {
     let summary_re = regex::Regex::new(
         r"Summary \[\s*([\d.]+)s\]\s+(\d+) tests? run:\s+(\d+) passed(?:,\s+(\d+) failed)?(?:,\s+(\d+) skipped)?"
@@ -970,6 +1008,7 @@ fn cargo_build_failure_summary(
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 fn filter_cargo_build(output: &str) -> String {
     filter_cargo_build_labeled(output, "build", 0)
 }
@@ -1276,6 +1315,7 @@ pub(crate) fn filter_cargo_test(output: &str) -> String {
 }
 
 /// Filter cargo clippy output - show full error blocks, group warnings by lint rule
+#[cfg(not(rtk_library))]
 fn filter_cargo_clippy(output: &str) -> String {
     let mut by_rule: HashMap<String, Vec<String>> = HashMap::new();
     let mut error_count = 0;
@@ -1445,6 +1485,7 @@ fn filter_cargo_clippy(output: &str) -> String {
     result.trim().to_string()
 }
 
+#[cfg(not(rtk_library))]
 fn filter_cargo_clippy_json(output: &str, exit_code: i32) -> String {
     let json = extract_json_diagnostics(output);
     if json.errors.is_empty() && json.warnings.is_empty() && exit_code == 0 {
@@ -1453,11 +1494,13 @@ fn filter_cargo_clippy_json(output: &str, exit_code: i32) -> String {
     filter_cargo_build_labeled(output, "clippy", exit_code)
 }
 
+#[cfg(not(rtk_library))]
 pub fn run_passthrough(args: &[OsString], verbose: u8) -> Result<i32> {
     crate::core::runner::run_passthrough("cargo", args, verbose)
 }
 
 #[cfg(test)]
+#[cfg(not(rtk_library))]
 mod tests {
     const TINY_BUILD_SUCCESS_OUTPUT: &str =
         "    Finished dev [unoptimized + debuginfo] target(s) in 0.01s\n";

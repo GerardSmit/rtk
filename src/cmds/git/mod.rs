@@ -1,3 +1,4 @@
+pub mod captured_output;
 pub mod diff_cmd;
 pub mod gh_cmd;
 pub mod git_cmd;
